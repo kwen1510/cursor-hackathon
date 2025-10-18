@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Panopto Player - Lesson View</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg: #f7fafc;
+            --panel: #ffffff;
+            --border: #e5e7eb;
+            --accent: #2563eb;
+            --accent-2: #06b6d4;
+            --text: #0f172a;
+            --muted: #475569;
+        }
+        html, body { height: 100%; }
+        body { margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--text); }
+        .app { display: grid; grid-template-rows: 64px 1fr; height: 100vh; }
+        .topbar { display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: #ffffff; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 2; }
+        .topbar h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
+        .topbar .actions { display: flex; gap: 10px; align-items: center; }
+        .select { background: #ffffff; border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 10px; }
+
+        .main { display: flex; gap: 12px; padding: 20px; min-height: 0; height: calc(100vh - 64px); }
+        .left { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; min-height: 0; display: grid; grid-template-rows: auto 1fr; flex: 0 0 60%; }
+        .player-wrap { padding: 20px; border-bottom: 1px solid var(--border); }
+        #status { padding: 12px 20px; color: var(--muted); }
+
+        .right { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; min-height: 0; display: flex; flex-direction: column; flex: 0 0 40%; }
+        .right-header { display: flex; border-bottom: 1px solid var(--border); }
+        .tab { padding: 12px 16px; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
+        .tab.active { border-bottom-color: var(--accent); background: rgba(37, 99, 235, 0.05); }
+        .tab:hover { background: rgba(37, 99, 235, 0.02); }
+        .right-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+        .right-content.hidden { display: none; }
+
+        .time-item { margin-bottom: 10px; }
+        .seek-btn { width: 100%; border: 1px solid var(--border); color: #0f172a; padding: 12px 14px; border-radius: 14px; font-size: 14px; font-weight: 600; cursor: pointer; transition: box-shadow .15s ease, transform .15s ease, filter .15s ease; display: flex; align-items: flex-start; gap: 12px; text-align: left; box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05); }
+        .seek-btn:hover { filter: brightness(1.02); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12); }
+        .seek-btn:active { transform: translateY(0); }
+        .seek-btn.g1 { background: linear-gradient(135deg, #dbeafe 0%, #e9d5ff 100%); }
+        .seek-btn.g2 { background: linear-gradient(135deg, #cffafe 0%, #fef3c7 100%); }
+        .seek-btn.g3 { background: linear-gradient(135deg, #dcfce7 0%, #fbcfe8 100%); }
+        .time-chip { background: rgba(255,255,255,0.75); border: 1px solid var(--border); color: #111827; padding: 4px 10px; border-radius: 999px; font-weight: 800; font-size: 12px; letter-spacing: 0.3px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .time-body { color: #0f172a; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; }
+
+        #player { aspect-ratio: 16/9; background: #eef2ff; border-radius: 10px; }
+
+
+        .chat-messages { flex: 1; overflow-y: auto; padding: 20px; }
+        .chat-input-area { border-top: 1px solid var(--border); padding: 20px; background: var(--panel); }
+        
+        .chat-message { margin-bottom: 16px; }
+        .chat-message:last-child { margin-bottom: 0; }
+        .chat-message.user { text-align: right; }
+        .chat-message.assistant { text-align: left; }
+        .chat-bubble { 
+            display: inline-block; 
+            max-width: 85%; 
+            padding: 12px 16px; 
+            border-radius: 16px; 
+            line-height: 1.5; 
+            word-wrap: break-word;
+        }
+        .chat-bubble.user { 
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); 
+            color: white; 
+            border-bottom-right-radius: 4px;
+        }
+        .chat-bubble.assistant { 
+            background: #f8fafc; 
+            color: #1e293b; 
+            border: 1px solid #e2e8f0;
+            border-bottom-left-radius: 4px;
+        }
+
+        @media (max-width: 1100px) { .main { flex-direction: column; } }
+    </style>
+</head>
+<body>
+<div class="app">
+    <div class="topbar">
+        <h1>Panopto Player — Lesson Viewer</h1>
+        <div class="actions">
+            <label for="videoSelect" class="meta">Lesson</label>
+            <select id="videoSelect" class="select"></select>
+        </div>
+    </div>
+    <div class="main">
+        <div class="left" id="leftPanel">
+            <div class="player-wrap">
+                <div id="player"></div>
+            </div>
+            <div id="status">Initializing...</div>
+        </div>
+        <div class="right">
+            <div class="right-header">
+                <div class="tab active" data-tab="timestamps">Timestamps</div>
+                <div class="tab" data-tab="chat">Assistant</div>
+            </div>
+            <div class="right-content" id="timestampsContent">
+                <div id="timestamps" style="padding: 16px; overflow-y: auto; flex: 1;"></div>
+            </div>
+            <div class="right-content hidden" id="chatContent">
+                <div id="chatMessages" class="chat-messages"></div>
+                <div class="chat-input-area">
+                    <div class="flex items-center gap-2">
+                        <button id="micBtn" class="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-full bg-sky-500 text-white hover:brightness-110 transition" title="Tap to record / stop" aria-label="Record">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v3m0 0h-3m3 0h3M8.25 9v3a3.75 3.75 0 007.5 0V9m-7.5 0A3.75 3.75 0 0112 5.25v0A3.75 3.75 0 0115.75 9v3A3.75 3.75 0 0112 15.75v0A3.75 3.75 0 018.25 12V9z" />
+                            </svg>
+                        </button>
+                        <input id="chatInput" class="flex-1 rounded-lg border border-[var(--border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" placeholder="Ask about this lesson..." />
+                        <button id="sendBtn" class="shrink-0 inline-flex items-center justify-center rounded-lg bg-sky-600 text-white px-4 py-2 hover:brightness-110 transition">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+    <script>
+    var embedApi; var isPlayerReady = false; var queuedSeekSeconds = null; var currentMeta = null; var metadataList = []; var currentTranscriptRaw = null;
+    var panoptoApiReady = false; var pendingInitSessionId = null;
+
+    window.onPanoptoEmbedApiReady = function(){
+        panoptoApiReady = true;
+        if (pendingInitSessionId) {
+            const sid = pendingInitSessionId; pendingInitSessionId = null;
+            actuallyCreatePlayer(sid);
+        }
+    };
+
+    function getQueryParam(name) { const url = new URL(window.location.href); return url.searchParams.get(name); }
+
+    function initPlayer(sessionId) {
+        if (!panoptoApiReady || typeof EmbedApi === 'undefined') {
+            pendingInitSessionId = sessionId;
+            return;
+        }
+        actuallyCreatePlayer(sessionId);
+    }
+
+    function actuallyCreatePlayer(sessionId){
+        isPlayerReady = false; queuedSeekSeconds = null; document.getElementById('player').innerHTML = '';
+            embedApi = new EmbedApi("player", {
+            width: "100%", height: "100%", serverName: "ri.ap.panopto.com", sessionId: sessionId,
+            videoParams: { interactivity: "none", showtitle: "false" },
+            events: {
+                onIframeReady: function(){ updateStatus("Splash ready. Click a timestamp to load & play."); },
+                onReady: function(){ isPlayerReady = true; updateStatus("Ready. Choose a timestamp."); try { embedApi.setVolume(0.3); } catch(e){}
+                    if (queuedSeekSeconds !== null) { var s = queuedSeekSeconds; queuedSeekSeconds = null; try{embedApi.pauseVideo();}catch(e){} embedApi.seekTo(s); embedApi.playVideo(); updateStatus('Jumped to ' + formatTime(s)); }
+                },
+                onStateChange: function(state){ if (state === PlayerState.Playing) updateStatus("Playing"); else if (state === PlayerState.Paused) updateStatus("Paused"); else if (state === PlayerState.Ended) updateStatus("Ended"); }
+                }
+            });
+        }
+
+    function updateStatus(m){ document.getElementById('status').textContent = m; }
+    function formatTime(total){ var t=Math.floor(Number(total)||0),h=Math.floor(t/3600),m=Math.floor((t%3600)/60),s=t%60; return (h>0?h+':':'')+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0'); }
+    function escapeHtml(str){ return String(str||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c])); }
+    function roleLabel(entry){ if (entry && entry.role) return entry.role.toUpperCase(); if (entry && entry.speaker && String(entry.speaker).toLowerCase().startsWith('speaker_0')) return 'TEACHER'; return 'STUDENT'; }
+    function mapTimestamps(data){ var items=[]; function push(v,r){ var st=Number(v); if(isFinite(st)) items.push({start:st,speaker:(r&&r.speaker)||'',text:(r&&(r.text||r.label))||'',role:(r&&r.role)||''}); }
+        function fromArray(arr){ arr.forEach(e=>{ if(typeof e==='number'||typeof e==='string') push(e); else if(e&&typeof e==='object'){ var c=e.start; if(c===undefined)c=e.time; if(c===undefined)c=e.timestamp; push(c,e);} }); }
+        if(Array.isArray(data)) fromArray(data); else if(data&&typeof data==='object'){ if(Array.isArray(data.timestamps)) fromArray(data.timestamps); else if(Array.isArray(data.segments)) fromArray(data.segments);} return items; }
+
+    window.seekTo = function(ts){ var s=ts; if(typeof ts==='object'&&ts) s=ts.start; s=Number(s); if(!isFinite(s)||s<0) return updateStatus('Invalid timestamp'); if(!isPlayerReady){ queuedSeekSeconds=s; try{ if(embedApi&&embedApi.loadVideo) embedApi.loadVideo(); }catch(e){} updateStatus('Loading... will jump to '+formatTime(s)); return; } try{embedApi.pauseVideo();}catch(e){} var d=Number(embedApi.getDuration&&embedApi.getDuration()); if(isFinite(d)&&s>d) s=Math.max(0,d-1); embedApi.seekTo(s); embedApi.playVideo(); updateStatus('Jumped to '+formatTime(s)); };
+
+    function populateSelector(list){ var sel=document.getElementById('videoSelect'); sel.innerHTML=list.map(v=>'<option value="'+v.sessionId+'">'+escapeHtml(v.title)+' — '+escapeHtml(v.uploadedAt)+'</option>').join(''); }
+    function findByIdOrSession(list, ident){ for(var i=0;i<list.length;i++){ if(list[i].sessionId===ident) return list[i]; } return null; }
+
+    function loadLesson(meta){
+        currentMeta = meta; initPlayer(meta.sessionId);
+        fetch('/api/timestamps?sessionId='+encodeURIComponent(meta.sessionId)).then(r=>{ if(!r.ok) throw new Error('Cannot load transcript'); return r.json(); })
+            .then(data=>{ currentTranscriptRaw = data; var list=mapTimestamps(data); var box=document.getElementById('timestamps'); if(!list.length){ box.innerHTML='<div class="meta">No timestamps found.</div>'; return; }
+                box.innerHTML=list.map(function(it, idx){ var who=roleLabel(it); var snippet=(it.text?escapeHtml(String(it.text).slice(0,140)):''); var g='g'+((idx%3)+1); return '<div class="time-item"><button class="seek-btn '+g+'" onclick="window.seekTo('+it.start+')"><span class="time-chip">'+formatTime(it.start)+'</span><span class="time-body">'+(who?('<strong>'+who+': </strong>'):'')+snippet+'</span></button></div>'; }).join(''); })
+            .catch(e=>{ document.getElementById('timestamps').innerHTML='<div class="meta">'+escapeHtml(e.message)+'</div>'; updateStatus(e.message); });
+    }
+
+    // Chat UI helpers
+    function addMsg(role, text){ 
+        var wrap = document.getElementById('chatMessages'); 
+        var isUser = role === 'user'; 
+        var message = document.createElement('div'); 
+        message.className = 'chat-message ' + role; 
+        var bubble = document.createElement('div'); 
+        bubble.className = 'chat-bubble ' + role; 
+        bubble.textContent = text || ''; 
+        message.appendChild(bubble); 
+        wrap.appendChild(message); 
+        wrap.scrollTop = wrap.scrollHeight; 
+        return bubble; 
+    }
+
+    async function getPromptTemplate(){ try{ const r=await fetch('/VIDEO_METADATA/assistant_prompt.txt'); return await r.text(); } catch(e){ return 'You are an intelligent lesson analysis assistant.'; } }
+    function transcriptAsText(){ try{ var list=mapTimestamps(currentTranscriptRaw||[]); return list.map(it=>'['+formatTime(it.start)+'] '+roleLabel(it)+': '+(it.text||'')).join('\n'); } catch(e){ return ''; } }
+
+    // Voice capture -> transcription
+    let mediaRecorder=null; let chunks=[]; let recording=false;
+    async function toggleMic(){ const btn=document.getElementById('micBtn'); if(!recording){ try{ const stream=await navigator.mediaDevices.getUserMedia({audio:true}); mediaRecorder=new MediaRecorder(stream,{mimeType:'audio/webm'}); chunks=[]; mediaRecorder.ondataavailable=e=>{ if(e.data && e.data.size>0) chunks.push(e.data); }; mediaRecorder.onstop=async ()=>{ const blob=new Blob(chunks,{type:'audio/webm'}); const resp=await fetch('/api/realtime/transcribe',{method:'POST', headers:{'content-type':'audio/webm'}, body: blob}); const textBody=await resp.text(); let data; try{ data=JSON.parse(textBody);}catch{ data={ text: textBody }; } const text=data.text || data.transcript || textBody; document.getElementById('chatInput').value = text; }; mediaRecorder.start(); recording=true; btn.classList.remove('bg-sky-500'); btn.classList.add('bg-red-500','ring-2','ring-red-400'); } catch(e){ console.error('Mic error:', e); } } else { if(mediaRecorder && mediaRecorder.state!=='inactive') mediaRecorder.stop(); recording=false; btn.classList.remove('bg-red-500','ring-2','ring-red-400'); btn.classList.add('bg-sky-500'); } }
+
+    // Streaming Claude request
+    async function sendPrompt(){ const input=document.getElementById('chatInput'); const userText=input.value.trim(); if(!userText) return; addMsg('user', userText); input.value=''; const basePrompt=await getPromptTemplate(); const lesson=transcriptAsText(); const payload={ prompt: basePrompt, text: 'User request: '+userText+'\n\nFull lesson transcript (normalized to TEACHER/STUDENT):\n'+lesson };
+        const assistantBubble = addMsg('assistant','');
+        
+        // Show thinking animation
+        let thinkingDots = 0;
+        const thinkingInterval = setInterval(() => {
+            thinkingDots = (thinkingDots + 1) % 4;
+            const dots = '.'.repeat(thinkingDots);
+            assistantBubble.textContent = 'Thinking' + dots;
+            document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+        }, 500);
+        
+        try {
+            const resp = await fetch('/api/analyze/stream', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+            const reader = resp.body.getReader(); 
+            const decoder = new TextDecoder(); 
+            let done = false; 
+            let firstToken = true; 
+            let buffer = '';
+            
+            while (!done) { 
+                const {value, done: d} = await reader.read(); 
+                done = d; 
+                if (value) { 
+                    if (firstToken) { 
+                        clearInterval(thinkingInterval); 
+                        assistantBubble.textContent = ''; 
+                        firstToken = false; 
+                    } 
+                    
+                    // Decode the chunk and add to buffer
+                    buffer += decoder.decode(value, { stream: !done });
+                    
+                    // Process complete lines
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep incomplete line in buffer
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                if (data.text) {
+                                    assistantBubble.textContent += data.text;
+                                    document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+                                } else if (data.end) {
+                                    // Stream ended
+                                    break;
+                                }
+                            } catch (e) {
+                                // If not JSON, treat as plain text
+                                assistantBubble.textContent += line;
+                                document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+                            }
+                        }
+                    }
+                } 
+            }
+        } catch (e) {
+            clearInterval(thinkingInterval);
+            assistantBubble.textContent = 'Error: '+String(e)+". Falling back...";
+            const r = await fetch('/api/analyze', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+            const t = await r.text(); assistantBubble.textContent += "\n"+t;
+        }
+    }
+
+    // Boot
+    fetch('/api/video-metadata').then(r=>{ if(!r.ok) throw new Error('Cannot load metadata'); return r.json(); })
+        .then(list=>{ metadataList=list; populateSelector(list); var ident=getQueryParam('sessionId')||getQueryParam('id'); var chosen=findByIdOrSession(list, ident)||list[0]; if(chosen){ document.getElementById('videoSelect').value=chosen.sessionId; loadLesson(chosen); } })
+        .catch(e=>updateStatus(e.message));
+
+    // Tab switching
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.right-content').forEach(c => c.classList.add('hidden'));
+        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+        document.getElementById(tabName + 'Content').classList.remove('hidden');
+    }
+
+    document.getElementById('videoSelect').addEventListener('change', function(){ const sessionId=this.value; const chosen=findByIdOrSession(metadataList, sessionId); if(!chosen) return; const url=new URL(window.location.href); url.searchParams.set('sessionId', chosen.sessionId); url.searchParams.delete('id'); history.replaceState({}, '', url); loadLesson(chosen); });
+    document.getElementById('micBtn').addEventListener('click', toggleMic);
+    document.getElementById('sendBtn').addEventListener('click', sendPrompt);
+    document.getElementById('chatInput').addEventListener('keydown', function(e){ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendPrompt(); }});
+    
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+    });
+
+    var tag=document.createElement('script'); tag.src='https://developers.panopto.com/scripts/embedapi.min.js'; var firstScriptTag=document.getElementsByTagName('script')[0]; firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    </script>
+</body>
+</html>

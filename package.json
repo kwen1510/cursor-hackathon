@@ -1,0 +1,21 @@
+{
+  "name": "panopto-lesson-viewer",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["education", "video", "ai", "panopto", "lesson-analysis"],
+  "author": "",
+  "license": "ISC",
+  "description": "AI-powered lesson viewer with Panopto integration",
+  "dependencies": {
+    "express": "^5.1.0",
+    "busboy": "^1.6.0",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
