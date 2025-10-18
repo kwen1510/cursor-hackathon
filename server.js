@@ -4,14 +4,13 @@ const path = require('path');
 require('dotenv').config();
 const app = express();
 
-// Supabase configuration
+// Supabase configuration (optional now). If not present, we read Phase 1 OUTPUT_LESSONS locally.
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
+const USE_SUPABASE = !!(SUPABASE_URL && SUPABASE_KEY);
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('❌ Missing Supabase credentials! Please check your .env file.');
-  process.exit(1);
-}
+// Local lessons directory from Phase 1 pipeline
+const LOCAL_LESSONS_DIR = path.join(__dirname, '..', 'Phase_1_Extract_Transcript', 'OUTPUT_LESSONS');
 
 // Supabase helper functions
 async function supabaseRequest(endpoint, options = {}) {
@@ -36,25 +35,82 @@ async function supabaseRequest(endpoint, options = {}) {
 }
 
 async function getLessons() {
-  const response = await supabaseRequest('/lessons?select=*');
+  if (!USE_SUPABASE) return getLocalLessons();
+  const response = await supabaseRequest('/lessons?select=id,session_id,title,uploaded_at,transcript_content,transcript_file,analysis');
   return await response.json();
 }
 
+function toDisplayDateTime(isoLike) {
+  try {
+    const d = new Date(isoLike);
+    const p = (n) => String(n).padStart(2, '0');
+    return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} - ${p(d.getHours())}:${p(d.getMinutes())}`;
+  } catch {
+    return isoLike;
+  }
+}
+
 async function getLessonBySessionId(sessionId) {
-  const response = await supabaseRequest(`/lessons?session_id=eq.${sessionId}&select=*`);
+  if (!USE_SUPABASE) return getLocalLessonBySessionId(sessionId);
+  const response = await supabaseRequest(`/lessons?session_id=eq.${sessionId}&select=id,session_id,title,uploaded_at,transcript_content,transcript_file,analysis`);
   const lessons = await response.json();
   return lessons.length > 0 ? lessons[0] : null;
 }
 
-async function getTranscriptsByLessonId(lessonId) {
-  const response = await supabaseRequest(`/transcripts?lesson_id=eq.${lessonId}&select=*&order=start_time`);
-  return await response.json();
+// No longer needed - transcripts are stored as jsonb in lessons.transcript_content
+
+// ---------- Local JSON helpers (OUTPUT_LESSONS) ----------
+function readJsonSafe(p) {
+  try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; }
+}
+
+function getLocalLessons() {
+  if (!fs.existsSync(LOCAL_LESSONS_DIR)) return [];
+  const files = fs.readdirSync(LOCAL_LESSONS_DIR).filter(f => f.endsWith('.json'));
+  const rows = [];
+  for (const f of files) {
+    const obj = readJsonSafe(path.join(LOCAL_LESSONS_DIR, f));
+    if (obj && obj.sessionId) {
+      rows.push({
+        id: obj.sessionId,
+        session_id: obj.sessionId,
+        title: obj.title || 'Lesson',
+        uploaded_at: obj.uploadedAt || null,
+        transcript_content: Array.isArray(obj.transcript) ? obj.transcript : []
+      });
+    }
+  }
+  return rows;
+}
+
+function getLocalLessonBySessionId(sessionId) {
+  const p = path.join(LOCAL_LESSONS_DIR, `${sessionId}.json`);
+  const obj = readJsonSafe(p);
+  if (!obj) return null;
+  return {
+    id: obj.sessionId,
+    session_id: obj.sessionId,
+    title: obj.title || 'Lesson',
+    uploaded_at: obj.uploadedAt || null,
+    transcript_content: Array.isArray(obj.transcript) ? obj.transcript : []
+  };
 }
 
 const PORT = process.env.PORT || 3000;
+const PROMPTS_DIR = path.join(__dirname, 'PROMPTS');
 
 app.use(express.static(__dirname));
 app.use(express.json({ limit: '2mb' }));
+
+// Serve prompts from new PROMPTS directory (fallback to VIDEO_METADATA for backward compat)
+app.get('/PROMPTS/:file', (req, res) => {
+  const filePath = path.join(PROMPTS_DIR, req.params.file);
+  if (fs.existsSync(filePath)) return res.sendFile(filePath);
+  // Fallback
+  const legacy = path.join(__dirname, 'VIDEO_METADATA', req.params.file);
+  if (fs.existsSync(legacy)) return res.sendFile(legacy);
+  return res.status(404).send('Not found');
+});
 
 // Legacy file reading function - no longer used with Supabase
 
@@ -66,13 +122,21 @@ app.get('/api/video-metadata', async (req, res) => {
       sessionId: lesson.session_id,
       title: lesson.title,
       uploadedAt: lesson.uploaded_at,
-      transcriptFile: lesson.transcript_file
+      uploadedAtFormatted: toDisplayDateTime(lesson.uploaded_at),
+      transcriptFile: lesson.transcript_file || null
     }));
     res.json(metadata);
   } catch (e) {
     console.error('Error fetching video metadata:', e);
     res.status(500).json({ error: 'Could not fetch metadata from Supabase' });
   }
+});
+
+// Optional endpoint to serve combined lessons JSON if created by Phase 1 script
+app.get('/api/combined-lessons', (req, res) => {
+  const p = path.join(__dirname, 'combined_lessons.json');
+  if (fs.existsSync(p)) return res.sendFile(p);
+  return res.status(404).json({ error: 'combined_lessons.json not found. Run Phase_1_Extract_Transcript/04_create_metadata_and_transcript.py' });
 });
 
 app.get('/api/timestamps', async (req, res) => {
@@ -87,15 +151,14 @@ app.get('/api/timestamps', async (req, res) => {
       return res.status(404).json({ error: 'Lesson not found' });
     }
 
-    const transcripts = await getTranscriptsByLessonId(lesson.id);
-    
-    // Transform transcripts to match expected format
-    const timestamps = transcripts.map(transcript => ({
-      speaker: transcript.speaker,
-      start: transcript.start_time,
-      end: transcript.end_time,
-      text: transcript.text,
-      role: transcript.role
+    // Extract timestamps from transcript_content jsonb (both Supabase and local)
+    const arr = Array.isArray(lesson.transcript_content) ? lesson.transcript_content : [];
+    const timestamps = arr.map(t => ({ 
+      speaker: t.speaker, 
+      start: t.start, 
+      end: t.end, 
+      text: t.text, 
+      role: t.role 
     }));
 
     res.json(timestamps);
@@ -115,23 +178,19 @@ app.get('/api/lesson/:sessionId', async (req, res) => {
       return res.status(404).json({ error: 'Lesson not found' });
     }
 
-    const transcripts = await getTranscriptsByLessonId(lesson.id);
-    
-    // Transform data to match expected format
+    // Extract transcript from transcript_content jsonb (both Supabase and local)
+    const transcriptArr = (Array.isArray(lesson.transcript_content) ? lesson.transcript_content : []).map(t => ({
+      speaker: t.speaker, start: t.start, end: t.end, text: t.text, role: t.role
+    }));
+
     const lessonData = {
       meta: {
         sessionId: lesson.session_id,
         title: lesson.title,
         uploadedAt: lesson.uploaded_at,
-        transcriptFile: lesson.transcript_file
+        transcriptFile: lesson.transcript_file || null
       },
-      transcript: transcripts.map(transcript => ({
-        speaker: transcript.speaker,
-        start: transcript.start_time,
-        end: transcript.end_time,
-        text: transcript.text,
-        role: transcript.role
-      }))
+      transcript: transcriptArr
     };
 
     res.json(lessonData);
@@ -288,7 +347,7 @@ app.post('/api/analyze/stream', async (req, res) => {
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    database: 'Supabase',
+    database: USE_SUPABASE ? 'Supabase' : 'Local JSON (OUTPUT_LESSONS)',
     endpoints: [
       'GET /api/video-metadata',
       'GET /api/timestamps?sessionId=<sessionId>',
