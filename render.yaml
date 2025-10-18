@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: panopto-lesson-viewer
+    name: lesson-analysis-assistant
     env: node
     plan: free
     buildCommand: npm install
@@ -10,12 +10,23 @@ services:
         value: production
       - key: PORT
         value: 10000
+      # Supabase
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_KEY
         sync: false
-      - key: GROQ_API_KEY
+      - key: SUPABASE_SERVICE_KEY
         sync: false
+      # AI APIs
       - key: ANTHROPIC_API_KEY
         sync: false
-
+      - key: GROQ_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      # Manus AI
+      - key: MANUS_API_KEY
+        sync: false
+      # Email
+      - key: APPSCRIPT_EMAIL
+        sync: false

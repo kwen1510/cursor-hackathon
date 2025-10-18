@@ -2,24 +2,34 @@
 <html>
 <head>
     <title>Lesson Analysis Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         :root {
-            --bg: #f7fafc;
+            --bg: #fafbfc;
             --panel: #ffffff;
             --border: #e5e7eb;
-            --accent: #2563eb;
-            --accent-2: #06b6d4;
-            --text: #0f172a;
-            --muted: #475569;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --text: #111827;
+            --muted: #6b7280;
         }
+        * { box-sizing: border-box; }
         html, body { height: 100%; }
-        body { margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--text); }
+        body { margin: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-weight: 400; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; letter-spacing: -0.01em; }
         .app { display: grid; grid-template-rows: 64px 1fr; height: 100vh; }
         .topbar { display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: #ffffff; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 2; }
         .topbar h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
+        .topbar .topbar-left { display: flex; align-items: center; gap: 20px; }
+        .topbar .mode-nav { display: flex; gap: 4px; background: #f3f4f6; border-radius: 8px; padding: 4px; }
+        .topbar .mode-btn { padding: 8px 16px; border: none; background: transparent; color: var(--muted); font-size: 14px; font-weight: 600; border-radius: 6px; cursor: pointer; transition: all 0.2s; }
+        .topbar .mode-btn:hover { color: var(--text); }
+        .topbar .mode-btn.active { background: #ffffff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .topbar .actions { display: flex; gap: 10px; align-items: center; }
         .select { background: #ffffff; border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 10px; }
+        .hidden { display: none !important; }
 
         .main { display: flex; gap: 12px; padding: 20px; min-height: 0; height: calc(100vh - 64px); }
         .left { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; min-height: 0; display: grid; grid-template-rows: 1fr; flex: 0 0 60%; }
@@ -36,14 +46,35 @@
         .right-content { flex: 1; display: flex; flex-direction: column; min-height: 0; }
         .right-content.hidden { display: none; }
 
-        .time-item { margin-bottom: 12px; }
-        .seek-btn { width: 100%; background: #ffffff; border: 1px solid var(--border); color: #0f172a; padding: 14px 16px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: box-shadow .15s ease, transform .15s ease; display: flex; align-items: flex-start; gap: 12px; text-align: left; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06); }
+        .time-item { margin-bottom: 12px; display: flex; align-items: flex-start; gap: 8px; }
+        .seek-btn { flex: 1; background: #ffffff; border: 1px solid var(--border); color: #0f172a; padding: 14px 16px; border-radius: 12px; font-size: 14px; font-weight: 600; cursor: pointer; transition: box-shadow .15s ease, transform .15s ease; display: flex; align-items: flex-start; gap: 12px; text-align: left; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06); position: relative; }
         .seek-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12); }
         .seek-btn:active { transform: translateY(0); }
         .seek-btn.role-teacher { border-left: 4px solid #3b82f6; }
         .seek-btn.role-student { border-left: 4px solid #10b981; }
         .time-chip { background: #f1f5f9; border: 1px solid var(--border); color: #0f172a; padding: 4px 10px; border-radius: 999px; font-weight: 800; font-size: 12px; letter-spacing: 0.3px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-        .time-body { color: #0f172a; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; }
+        .time-body { color: #0f172a; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+        .time-item-side { display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 14px; }
+        .flag-btn { background: transparent; border: none; cursor: pointer; font-size: 18px; opacity: 0.5; transition: all 0.2s; padding: 4px; filter: grayscale(100%); }
+        .flag-btn:hover { opacity: 1; transform: scale(1.15); }
+        .flag-btn.flagged { opacity: 1; filter: grayscale(0%); }
+        .flagged-item { background: #ffffff; border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+        .flagged-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px; }
+        .flagged-actions { display: flex; gap: 8px; }
+        .publish-note-btn { margin-top: 8px; padding: 6px 14px; background: var(--accent); color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .publish-note-btn:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3); }
+        .publish-note-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .publish-note-btn.published { background: #10b981; }
+        .publish-note-btn.published:hover { background: #059669; }
+        .publish-note-btn.update { background: #f59e0b; }
+        .publish-note-btn.update:hover { background: #d97706; }
+        .flag-note-wrapper { position: relative; margin-top: 8px; }
+        .flag-note { width: 100%; padding: 8px 52px 8px 8px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; resize: vertical; min-height: 60px; font-family: inherit; }
+        .note-mic-btn { position: absolute; right: 8px; bottom: 8px; width: 36px; height: 36px; background: transparent; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: #9ca3af; transition: all 0.2s ease; padding: 0; }
+        .note-mic-btn:hover { color: #6b7280; transform: scale(1.08); }
+        .note-mic-btn:active { transform: scale(0.95); }
+        .note-mic-btn.recording { color: #ef4444; animation: pulse-icon 1.2s ease-in-out infinite; }
+        @keyframes pulse-icon { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.1); opacity: 0.8; } }
 
         #player { aspect-ratio: 16/9; background: #eef2ff; border-radius: 10px; }
 
@@ -100,13 +131,99 @@
 <body>
 <div class="app">
     <div class="topbar">
-        <h1>Lesson Analysis Assistant</h1>
-        <div class="actions">
+        <div class="topbar-left">
+            <h1>Lesson Analysis Assistant</h1>
+            <div class="mode-nav">
+                <button class="mode-btn" data-mode="onboarding">Onboarding</button>
+                <button class="mode-btn active" data-mode="lesson_analysis">Lesson Analysis</button>
+            </div>
+        </div>
+        <div class="actions" id="lessonSelector">
             <label for="videoSelect" class="meta">Lesson</label>
             <select id="videoSelect" class="select"></select>
         </div>
     </div>
-    <div class="main">
+    <div class="main" id="mainContent">
+        <!-- Onboarding Mode View -->
+        <div id="onboardingView" class="hidden" style="flex: 1; display: flex; overflow: hidden;">
+            <!-- Chat Container (Left Side) -->
+            <div id="onboardingChat" style="flex: 1; display: flex; flex-direction: column; padding: 20px; overflow: hidden;">
+                <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px 32px; margin-bottom: 16px;">
+                    <h1 style="font-size: 24px; font-weight: 700; margin: 0 0 8px 0;">🎓 Onboarding Assistant</h1>
+                    <p style="font-size: 14px; color: var(--muted); margin: 0;">Let's discuss your teaching goals and set up your lesson analysis.</p>
+                </div>
+                
+                <!-- Chat Messages Container -->
+                <div id="onboardingMessages" style="flex: 1; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; overflow-y: auto; margin-bottom: 16px; display: flex; flex-direction: column; gap: 16px;">
+                    <!-- Messages will be added here dynamically -->
+                </div>
+                
+                <!-- Chat Input Area -->
+                <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <button id="onboardingMicBtn" style="flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 50%; background: #3b82f6; color: white; border: none; cursor: pointer; transition: all 0.2s;" title="Voice input">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v3m0 0h-3m3 0h3M8.25 9v3a3.75 3.75 0 007.5 0V9m-7.5 0A3.75 3.75 0 0112 5.25v0A3.75 3.75 0 0115.75 9v3A3.75 3.75 0 0112 15.75v0A3.75 3.75 0 018.25 12V9z" />
+                            </svg>
+                        </button>
+                        <input id="onboardingInput" style="flex: 1; border-radius: 8px; border: 1px solid var(--border); padding: 12px 16px; font-size: 14px; outline: none;" placeholder="Tell me about your teaching goals..." />
+                        <button id="onboardingSendBtn" style="flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; background: #3b82f6; color: white; padding: 12px 24px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                            Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Research Panel (Right Side) - Always Visible -->
+            <div id="researchPanel" style="flex: 1; display: flex; flex-direction: column; padding: 20px; overflow-y: auto; border-left: 1px solid var(--border); background: var(--bg);">
+                <!-- Empty State -->
+                <div id="researchEmptyState" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; padding: 40px;">
+                    <div style="font-size: 64px; margin-bottom: 16px;">💡</div>
+                    <h2 style="font-size: 20px; font-weight: 600; margin: 0 0 8px 0; color: var(--text);">No Plan Yet</h2>
+                    <p style="font-size: 14px; color: var(--muted); max-width: 300px;">Start chatting on the left to create your personalized teaching plan!</p>
+                </div>
+                
+                <!-- Content State (hidden by default) -->
+                <div id="researchContent" class="hidden" style="display: flex; flex-direction: column; height: 100%;">
+                    <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px 32px; margin-bottom: 16px;">
+                        <h1 style="font-size: 24px; font-weight: 700; margin: 0 0 8px 0;">📊 Your Teaching Plan</h1>
+                        <p id="researchCreatedDate" style="font-size: 12px; color: var(--muted); margin: 0;"></p>
+                    </div>
+                    
+                    <!-- Goal Section -->
+                    <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px;">
+                        <h2 style="font-size: 16px; font-weight: 600; margin: 0 0 4px 0;">🎯 Your Teaching Goal</h2>
+                        <p style="font-size: 13px; color: var(--muted); margin: 0 0 12px 0;">Includes your responses and the clarifying questions asked</p>
+                        <textarea id="goalTextArea" style="width: 100%; min-height: 150px; border-radius: 8px; border: 1px solid var(--border); padding: 12px; font-size: 14px; line-height: 1.6; resize: vertical; font-family: inherit;" placeholder="Your teaching goals will appear here..."></textarea>
+                    </div>
+                    
+                    <!-- Research Results Section -->
+                    <div style="background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px; flex: 1; display: flex; flex-direction: column;">
+                        <h2 style="font-size: 16px; font-weight: 600; margin: 0 0 12px 0;">🔍 Research Results</h2>
+                        <div id="researchOutputArea" style="flex: 1; overflow-y: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px; font-size: 14px; line-height: 1.7; color: var(--text);">
+                            <p style="color: var(--muted);">Research results will appear here...</p>
+                        </div>
+                    </div>
+                    
+                <!-- Resources Section -->
+                <div id="resourcesSection" style="background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px;">
+                    <h2 style="font-size: 16px; font-weight: 600; margin: 0 0 12px 0;">📎 Resources</h2>
+                    <div id="resourcesList" style="display: flex; flex-direction: column; gap: 8px;">
+                        <p style="color: var(--muted); font-size: 14px;">No resources available yet.</p>
+                    </div>
+                </div>
+                    
+                    <!-- Save Button -->
+                    <div style="display: flex; justify-content: flex-end; gap: 12px;">
+                        <button id="saveResearchBtn" style="display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; background: #10b981; color: white; padding: 12px 24px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                            💾 Save Goal Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Lesson Analysis Mode View -->
         <div class="left" id="leftPanel">
             <div class="player-wrap">
                 <div id="player"></div>
@@ -117,9 +234,13 @@
             <div class="right-header">
                 <div class="tab active" data-tab="timestamps">Timestamps</div>
                 <div class="tab" data-tab="chat">Assistant</div>
+                <div class="tab" data-tab="flagged">Flagged</div>
             </div>
             <div class="right-content" id="timestampsContent">
                 <div id="timestamps" style="padding: 16px; overflow-y: auto; flex: 1;"></div>
+            </div>
+            <div class="right-content hidden" id="flaggedContent">
+                <div id="flaggedList" style="padding: 16px; overflow-y: auto; flex: 1;"></div>
             </div>
             <div class="right-content hidden" id="chatContent">
                 <div id="chatMessages" class="chat-messages"></div>
@@ -140,7 +261,11 @@
 </div>
     <script>
     var embedApi; var isPlayerReady = false; var queuedSeekSeconds = null; var currentMeta = null; var metadataList = []; var currentTranscriptRaw = null;
-    var panoptoApiReady = false; var pendingInitSessionId = null;
+    var panoptoApiReady = false; var pendingInitSessionId = null; var currentPlayerSessionId = null;
+    var flaggedTimestamps = new Set(); var allFlags = [];
+    var currentMode = 'lesson_analysis'; // Default mode
+    var onboardingConversation = []; // Store conversation history
+    var onboardingRecorder = null; // Voice recorder for onboarding
 
     window.onPanoptoEmbedApiReady = function(){
         panoptoApiReady = true;
@@ -151,6 +276,665 @@
     };
 
     function getQueryParam(name) { const url = new URL(window.location.href); return url.searchParams.get(name); }
+    
+    // Mode switching
+    function switchMode(mode) {
+        currentMode = mode;
+        const url = new URL(window.location.href);
+        url.searchParams.set('mode', mode);
+        history.replaceState({}, '', url);
+        
+        // Update UI
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.mode === mode);
+        });
+        
+        const leftPanel = document.getElementById('leftPanel');
+        const divider = document.getElementById('divider');
+        const rightPanel = document.querySelector('.right');
+        const onboardingView = document.getElementById('onboardingView');
+        const lessonSelector = document.getElementById('lessonSelector');
+        
+        if (mode === 'onboarding') {
+            // Show onboarding, hide lesson analysis
+            onboardingView.classList.remove('hidden');
+            leftPanel.classList.add('hidden');
+            divider.classList.add('hidden');
+            rightPanel.classList.add('hidden');
+            lessonSelector.classList.add('hidden');
+            // Initialize onboarding chat
+            initializeOnboardingChat();
+        } else {
+            // Show lesson analysis, hide onboarding
+            onboardingView.classList.add('hidden');
+            leftPanel.classList.remove('hidden');
+            divider.classList.remove('hidden');
+            rightPanel.classList.remove('hidden');
+            lessonSelector.classList.remove('hidden');
+        }
+    }
+    
+    // Initialize mode from URL
+    function initializeMode() {
+        const modeParam = getQueryParam('mode');
+        if (modeParam === 'onboarding') {
+            switchMode('onboarding');
+        } else {
+            switchMode('lesson_analysis');
+        }
+    }
+    
+    // ========== ONBOARDING CHAT FUNCTIONS ==========
+    
+    // Format text with markdown-like syntax to HTML
+    function formatMessageText(text) {
+        if (!text) return '';
+        
+        // Convert **bold** to <strong>
+        text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        
+        // Convert numbered lists (1. 2. 3.) to proper formatting with line breaks
+        text = text.replace(/(\d+)\.\s\*\*/g, '<br><br><strong>$1.</strong> <strong>');
+        text = text.replace(/(\d+)\.\s/g, '<br><br><strong>$1.</strong> ');
+        
+        // Convert bullet points (- ) to proper formatting
+        text = text.replace(/^-\s/gm, '<br>• ');
+        
+        // Clean up multiple br tags at start
+        text = text.replace(/^(<br>)+/, '');
+        
+        return text;
+    }
+    
+    // Enhanced formatter for research output with full markdown support
+    function formatResearchOutput(text) {
+        if (!text) return '<p style="color: var(--muted);">No research available yet.</p>';
+        
+        let html = '';
+        const lines = text.split('\n');
+        let inList = false;
+        let inNumberedList = false;
+        let currentParagraph = '';
+        
+        for (let i = 0; i < lines.length; i++) {
+            let line = lines[i].trim();
+            
+            // Skip empty lines but close lists if needed
+            if (!line) {
+                if (inList) {
+                    html += '</ul>';
+                    inList = false;
+                }
+                if (inNumberedList) {
+                    html += '</ol>';
+                    inNumberedList = false;
+                }
+                if (currentParagraph) {
+                    html += `<p style="margin: 12px 0; line-height: 1.7;">${currentParagraph}</p>`;
+                    currentParagraph = '';
+                }
+                continue;
+            }
+            
+            // Handle headers
+            if (line.startsWith('###')) {
+                if (inList) { html += '</ul>'; inList = false; }
+                if (inNumberedList) { html += '</ol>'; inNumberedList = false; }
+                if (currentParagraph) { html += `<p style="margin: 12px 0; line-height: 1.7;">${currentParagraph}</p>`; currentParagraph = ''; }
+                const headerText = line.replace(/^###\s*/, '');
+                html += `<h3 style="font-size: 16px; font-weight: 600; margin: 24px 0 12px 0; color: var(--text);">${headerText}</h3>`;
+            } else if (line.startsWith('##')) {
+                if (inList) { html += '</ul>'; inList = false; }
+                if (inNumberedList) { html += '</ol>'; inNumberedList = false; }
+                if (currentParagraph) { html += `<p style="margin: 12px 0; line-height: 1.7;">${currentParagraph}</p>`; currentParagraph = ''; }
+                const headerText = line.replace(/^##\s*/, '');
+                html += `<h2 style="font-size: 18px; font-weight: 600; margin: 20px 0 12px 0; color: var(--text);">${headerText}</h2>`;
+            }
+            // Handle bullet points
+            else if (line.startsWith('-') || line.startsWith('•')) {
+                if (inNumberedList) { html += '</ol>'; inNumberedList = false; }
+                if (currentParagraph) { html += `<p style="margin: 12px 0; line-height: 1.7;">${currentParagraph}</p>`; currentParagraph = ''; }
+                if (!inList) {
+                    html += '<ul style="margin: 12px 0 12px 20px; padding-left: 20px;">';
+                    inList = true;
+                }
+                const listText = line.replace(/^[-•]\s*/, '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                html += `<li style="margin: 8px 0; line-height: 1.7;">${listText}</li>`;
+            }
+            // Handle numbered lists
+            else if (/^\d+\.\s/.test(line)) {
+                if (inList) { html += '</ul>'; inList = false; }
+                if (currentParagraph) { html += `<p style="margin: 12px 0; line-height: 1.7;">${currentParagraph}</p>`; currentParagraph = ''; }
+                if (!inNumberedList) {
+                    html += '<ol style="margin: 12px 0 12px 20px; padding-left: 20px;">';
+                    inNumberedList = true;
+                }
+                const listText = line.replace(/^\d+\.\s*/, '').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                html += `<li style="margin: 8px 0; line-height: 1.7;">${listText}</li>`;
+            }
+            // Regular paragraphs
+            else {
+                if (inList) { html += '</ul>'; inList = false; }
+                if (inNumberedList) { html += '</ol>'; inNumberedList = false; }
+                
+                // Apply bold formatting
+                const formattedLine = line.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                
+                if (currentParagraph) {
+                    currentParagraph += ' ' + formattedLine;
+                } else {
+                    currentParagraph = formattedLine;
+                }
+            }
+        }
+        
+        // Close any open tags
+        if (inList) html += '</ul>';
+        if (inNumberedList) html += '</ol>';
+        if (currentParagraph) html += `<p style="margin: 12px 0; line-height: 1.7;">${currentParagraph}</p>`;
+        
+        return html;
+    }
+    
+    function addOnboardingMessage(role, text) {
+        const messagesContainer = document.getElementById('onboardingMessages');
+        const messageDiv = document.createElement('div');
+        messageDiv.style.cssText = 'display: flex; align-items: flex-start; gap: 12px;' + (role === 'user' ? 'justify-content: flex-end;' : '');
+        
+        const bubble = document.createElement('div');
+        bubble.style.cssText = 'max-width: 75%; padding: 14px 18px; border-radius: 16px; line-height: 1.7; word-wrap: break-word;';
+        
+        if (role === 'user') {
+            bubble.style.cssText += 'background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-bottom-right-radius: 4px;';
+        } else {
+            bubble.style.cssText += 'background: #f8fafc; color: #1e293b; border: 1px solid #e2e8f0; border-bottom-left-radius: 4px;';
+        }
+        
+        // Use innerHTML for formatted text
+        bubble.innerHTML = formatMessageText(text || '');
+        messageDiv.appendChild(bubble);
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        
+        return bubble;
+    }
+    
+    async function sendOnboardingMessage() {
+        const input = document.getElementById('onboardingInput');
+        const userText = input.value.trim();
+        if (!userText) return;
+        
+        // Add user message to UI
+        addOnboardingMessage('user', userText);
+        input.value = '';
+        
+        // Add to conversation history
+        onboardingConversation.push({ role: 'user', content: userText });
+        
+        // Show animated thinking indicator
+        const thinkingBubble = addOnboardingMessage('assistant', 'Thinking.');
+        let thinkingDots = 1;
+        const thinkingInterval = setInterval(() => {
+            thinkingDots = (thinkingDots % 3) + 1;
+            thinkingBubble.innerHTML = 'Thinking' + '.'.repeat(thinkingDots);
+        }, 500);
+        
+        try {
+            // Send to backend with conversation history
+            const response = await fetch('/api/onboarding/chat/stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    conversation: onboardingConversation 
+                })
+            });
+            
+            if (!response.ok) throw new Error('Failed to get response');
+            
+            // Stop thinking animation
+            clearInterval(thinkingInterval);
+            
+            // Handle streaming response
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let fullResponse = '';
+            let shouldTriggerResearch = false;
+            let researchQuery = '';
+            
+            // Remove thinking bubble and create response bubble
+            thinkingBubble.parentElement.remove();
+            const responseBubble = addOnboardingMessage('assistant', '');
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+                        
+                        try {
+                            const parsed = JSON.parse(data);
+                            if (parsed.content) {
+                                fullResponse += parsed.content;
+                                responseBubble.innerHTML = formatMessageText(fullResponse);
+                            }
+                            if (parsed.triggerResearch !== undefined) {
+                                shouldTriggerResearch = parsed.triggerResearch;
+                                researchQuery = parsed.researchQuery || '';
+                            }
+                        } catch (e) {
+                            // Skip invalid JSON
+                        }
+                    }
+                }
+            }
+            
+            // Add to conversation history
+            onboardingConversation.push({ role: 'assistant', content: fullResponse });
+            
+            // Check if we should trigger Manus research
+            if (shouldTriggerResearch) {
+                console.log('🚀 Triggering Manus research...');
+                // Trigger Manus research and then show research panel
+                await triggerManusResearch(researchQuery);
+                
+                // After 2 seconds, load the research panel and disable chat
+                setTimeout(() => {
+                    loadResearchPanel();
+                    disableChatWithStatus('researching');
+                }, 2000);
+            }
+            
+        } catch (error) {
+            console.error('Onboarding chat error:', error);
+            clearInterval(thinkingInterval);
+            thinkingBubble.innerHTML = 'Sorry, I encountered an error. Please try again.';
+        }
+    }
+    
+    async function triggerManusResearch(query) {
+        try {
+            const response = await fetch('/api/onboarding/trigger-manus', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    query: query,
+                    conversation: onboardingConversation 
+                })
+            });
+            
+            if (!response.ok) throw new Error('Failed to trigger Manus');
+            
+            const data = await response.json();
+            console.log('✅ Manus research triggered:', data);
+            console.log('📊 Task URL:', data.manusTaskUrl);
+            console.log('🔗 Share URL:', data.manusShareUrl);
+            
+            // Add styled confirmation message (no links in UI)
+            const messagesContainer = document.getElementById('onboardingMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.style.cssText = 'display: flex; justify-content: flex-start;';
+            
+            const bubble = document.createElement('div');
+            bubble.style.cssText = 'max-width: 70%; padding: 12px 16px; border-radius: 12px; background: #f0f9ff; color: #0c4a6e; border: 1px solid #bae6fd; border-bottom-left-radius: 4px;';
+            
+            bubble.innerHTML = `
+                <div style="margin-bottom: 12px;">
+                    <strong style="font-size: 15px;">Research Started!</strong>
+                </div>
+                <div style="margin-bottom: 12px; color: #0c4a6e;">
+                    Your personalized teaching research is now underway with Manus AI.
+                </div>
+                <div style="padding-top: 12px; border-top: 1px solid #bae6fd; font-size: 13px; color: #0c4a6e;">
+                    You'll receive an email when the analysis is complete. Results will appear in the panel on the right.
+                </div>
+            `;
+            
+            messageDiv.appendChild(bubble);
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+        } catch (error) {
+            console.error('Manus trigger error:', error);
+            addOnboardingMessage('assistant', '❌ Sorry, there was an error creating the research task. Please try again or contact support.');
+        }
+    }
+    
+    // Voice input for onboarding
+    async function toggleOnboardingMic() {
+        const btn = document.getElementById('onboardingMicBtn');
+        
+        if (onboardingRecorder && onboardingRecorder.state === 'recording') {
+            // Stop recording
+            onboardingRecorder.stop();
+            btn.style.background = '#3b82f6';
+        } else {
+            // Start recording
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                onboardingRecorder = new MediaRecorder(stream);
+                const chunks = [];
+                
+                onboardingRecorder.ondataavailable = e => {
+                    if (e.data && e.data.size > 0) chunks.push(e.data);
+                };
+                
+                onboardingRecorder.onstop = async () => {
+                    stream.getTracks().forEach(t => t.stop());
+                    const blob = new Blob(chunks, { type: 'audio/webm' });
+                    const arrayBuffer = await blob.arrayBuffer();
+                    
+                    try {
+                        const response = await fetch('/api/realtime/transcribe', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/octet-stream' },
+                            body: arrayBuffer
+                        });
+                        
+                        if (!response.ok) throw new Error('Transcription failed');
+                        
+                        const data = await response.json();
+                        const text = data.text || '';
+                        document.getElementById('onboardingInput').value = text;
+                    } catch (e) {
+                        console.error('Transcription error:', e);
+                    }
+                };
+                
+                onboardingRecorder.start();
+                btn.style.background = '#ef4444';
+            } catch (e) {
+                console.error('Microphone error:', e);
+                alert('Could not access microphone');
+            }
+        }
+    }
+    
+    // Initialize onboarding chat with welcome message
+    async function initializeOnboardingChat() {
+        const messagesContainer = document.getElementById('onboardingMessages');
+        
+        // Check if user has existing session
+        try {
+            const response = await fetch('/api/onboarding/session/kwen1510@hotmail.com');
+            if (response.ok) {
+                const session = await response.json();
+                
+                if (session && (session.status === 'completed' || session.status === 'researching')) {
+                    // Load the research panel
+                    console.log('✅ Found existing session, loading research panel...');
+                    loadResearchPanel();
+                    
+                    // Disable chat and show status
+                    disableChatWithStatus(session.status === 'completed' ? 'completed' : 'researching');
+                    return;
+                }
+            }
+        } catch (error) {
+            console.error('Error checking for existing session:', error);
+        }
+        
+        // No existing session, show welcome message
+        if (messagesContainer.children.length === 0) {
+            addOnboardingMessage('assistant', 'Hello! I\'m here to help you set up your lesson analysis. What are your main teaching goals or areas you\'d like to improve?');
+        }
+    }
+    
+    // Disable chat and show status message with restart button
+    function disableChatWithStatus(status) {
+        const messagesContainer = document.getElementById('onboardingMessages');
+        messagesContainer.innerHTML = ''; // Clear messages
+        
+        const statusDiv = document.createElement('div');
+        statusDiv.style.cssText = 'display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; text-align: center; padding: 40px;';
+        
+        if (status === 'completed') {
+            statusDiv.innerHTML = `
+                <div style="font-size: 48px; margin-bottom: 16px;">✓</div>
+                <h2 style="font-size: 20px; font-weight: 600; margin: 0 0 12px 0; color: var(--text);">Research Complete</h2>
+                <p style="font-size: 14px; color: var(--muted); margin-bottom: 24px; max-width: 400px;">
+                    Your teaching research is available in the panel on the right. You can edit and save your goals and research anytime.
+                </p>
+                <button id="restartGoalsBtn" style="display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; background: #3b82f6; color: white; padding: 12px 24px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                    Start New Research
+                </button>
+            `;
+        } else {
+            statusDiv.innerHTML = `
+                <div style="font-size: 48px; margin-bottom: 16px;">⏳</div>
+                <h2 style="font-size: 20px; font-weight: 600; margin: 0 0 12px 0; color: var(--text);">Research In Progress</h2>
+                <p style="font-size: 14px; color: var(--muted); margin-bottom: 24px; max-width: 400px;">
+                    Your research is underway. You'll receive an email when it's complete, and results will appear in the panel on the right.
+                </p>
+                <button id="restartGoalsBtn" style="display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; background: #3b82f6; color: white; padding: 12px 24px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                    Start New Research
+                </button>
+            `;
+        }
+        
+        messagesContainer.appendChild(statusDiv);
+        
+        // Disable input
+        const input = document.getElementById('onboardingInput');
+        const sendBtn = document.getElementById('onboardingSendBtn');
+        const micBtn = document.getElementById('onboardingMicBtn');
+        
+        input.disabled = true;
+        input.placeholder = 'Research in progress...';
+        sendBtn.disabled = true;
+        sendBtn.style.opacity = '0.5';
+        sendBtn.style.cursor = 'not-allowed';
+        micBtn.disabled = true;
+        micBtn.style.opacity = '0.5';
+        micBtn.style.cursor = 'not-allowed';
+        
+        // Add restart button listener
+        setTimeout(() => {
+            const restartBtn = document.getElementById('restartGoalsBtn');
+            if (restartBtn) {
+                restartBtn.addEventListener('click', restartGoals);
+            }
+        }, 100);
+    }
+    
+    // Restart goals - clear session and refresh
+    async function restartGoals() {
+        if (!confirm('Are you sure you want to start a new research? Your current research will remain saved but you\'ll create a new one.')) {
+            return;
+        }
+        
+        // Clear the conversation
+        onboardingConversation = [];
+        
+        // Enable chat
+        const input = document.getElementById('onboardingInput');
+        const sendBtn = document.getElementById('onboardingSendBtn');
+        const micBtn = document.getElementById('onboardingMicBtn');
+        const messagesContainer = document.getElementById('onboardingMessages');
+        
+        input.disabled = false;
+        input.placeholder = 'Tell me about your teaching goals...';
+        sendBtn.disabled = false;
+        sendBtn.style.opacity = '1';
+        sendBtn.style.cursor = 'pointer';
+        micBtn.disabled = false;
+        micBtn.style.opacity = '1';
+        micBtn.style.cursor = 'pointer';
+        
+        // Clear messages and show welcome
+        messagesContainer.innerHTML = '';
+        addOnboardingMessage('assistant', 'Hello! I\'m here to help you set up your lesson analysis. What are your main teaching goals or areas you\'d like to improve?');
+        
+        // Hide research panel and show empty state
+        document.getElementById('researchEmptyState').style.display = 'flex';
+        document.getElementById('researchContent').classList.add('hidden');
+    }
+    
+    // Load research panel with data from Supabase
+    async function loadResearchPanel() {
+        try {
+            console.log('📊 Loading research panel...');
+            
+            // Fetch the latest session
+            const response = await fetch('/api/onboarding/session/kwen1510@hotmail.com');
+            if (!response.ok) throw new Error('Failed to load session');
+            
+            const session = await response.json();
+            if (!session) {
+                console.warn('No session found');
+                return;
+            }
+            
+            // Store session ID for saving
+            window.currentSessionId = session.id;
+            
+            // Show research content, hide empty state
+            document.getElementById('researchEmptyState').style.display = 'none';
+            document.getElementById('researchContent').classList.remove('hidden');
+            
+            // Populate the fields
+            document.getElementById('goalTextArea').value = session.goal_text || '';
+            
+            // Format and display research output
+            const researchOutput = session.research_output || 'Research in progress... You\'ll receive an email when complete.';
+            document.getElementById('researchOutputArea').innerHTML = formatResearchOutput(researchOutput);
+            
+            // Format date (DD/MM/YYYY)
+            if (session.created_at) {
+                const date = new Date(session.created_at);
+                const formattedDate = date.toLocaleDateString('en-GB');
+                document.getElementById('researchCreatedDate').textContent = `Created: ${formattedDate}`;
+            }
+            
+            // Display resources if available
+            if (session.research_sources && session.research_sources.length > 0) {
+                const resourcesList = document.getElementById('resourcesList');
+                resourcesList.innerHTML = '';
+                
+                session.research_sources.forEach((source, idx) => {
+                    const resourceItem = document.createElement('div');
+                    resourceItem.style.cssText = 'padding: 14px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; transition: all 0.2s; cursor: pointer;';
+                    
+                    // Add hover effect
+                    resourceItem.onmouseenter = function() {
+                        this.style.borderColor = '#3b82f6';
+                        this.style.boxShadow = '0 2px 8px rgba(59, 130, 246, 0.15)';
+                    };
+                    resourceItem.onmouseleave = function() {
+                        this.style.borderColor = 'var(--border)';
+                        this.style.boxShadow = 'none';
+                    };
+                    
+                    if (source.file_name && source.url) {
+                        resourceItem.innerHTML = `
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div style="flex-shrink: 0; width: 40px; height: 40px; background: #eff6ff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                                    📄
+                                </div>
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                        ${source.file_name}
+                                    </div>
+                                    <div style="font-size: 12px; color: var(--muted);">
+                                        ${source.size_bytes ? `${(source.size_bytes / 1024).toFixed(1)} KB` : 'Document'}
+                                    </div>
+                                </div>
+                                <div style="flex-shrink: 0;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                        <polyline points="15 3 21 3 21 9"></polyline>
+                                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                                    </svg>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Make the whole card clickable
+                        resourceItem.onclick = function() {
+                            window.open(source.url, '_blank');
+                        };
+                    } else if (source.url) {
+                        resourceItem.innerHTML = `
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div style="flex-shrink: 0; width: 40px; height: 40px; background: #eff6ff; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+                                    🔗
+                                </div>
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-size: 14px; font-weight: 500; color: #3b82f6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                        ${source.url}
+                                    </div>
+                                </div>
+                                <div style="flex-shrink: 0;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                        <polyline points="15 3 21 3 21 9"></polyline>
+                                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                                    </svg>
+                                </div>
+                            </div>
+                        `;
+                        
+                        resourceItem.onclick = function() {
+                            window.open(source.url, '_blank');
+                        };
+                    }
+                    
+                    resourcesList.appendChild(resourceItem);
+                });
+            }
+            
+            console.log('✅ Research panel loaded');
+            
+        } catch (error) {
+            console.error('Error loading research panel:', error);
+        }
+    }
+    
+    // Save research changes to Supabase
+    async function saveResearchChanges() {
+        if (!window.currentSessionId) {
+            alert('No session to save');
+            return;
+        }
+        
+        try {
+            console.log('💾 Saving changes...');
+            
+            const goalText = document.getElementById('goalTextArea').value;
+            // Note: research output is read-only formatted content, only save goal_text
+            
+            const response = await fetch(`/api/onboarding/session/${window.currentSessionId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    goal_text: goalText
+                })
+            });
+            
+            if (!response.ok) throw new Error('Failed to save');
+            
+            console.log('✅ Changes saved');
+            
+            // Show success feedback
+            const btn = document.getElementById('saveResearchBtn');
+            const originalText = btn.textContent;
+            btn.textContent = '✅ Saved!';
+            btn.style.background = '#10b981';
+            
+            setTimeout(() => {
+                btn.textContent = originalText;
+            }, 2000);
+            
+        } catch (error) {
+            console.error('Error saving changes:', error);
+            alert('Failed to save changes. Please try again.');
+        }
+    }
 
     function initPlayer(sessionId) {
         if (!panoptoApiReady || typeof EmbedApi === 'undefined') {
@@ -161,6 +945,14 @@
     }
 
     function actuallyCreatePlayer(sessionId){
+        // Only recreate player if sessionId changed (prevents Panopto logout)
+        if (currentPlayerSessionId === sessionId && embedApi) {
+            console.log('Player already loaded for session:', sessionId);
+            return; // Player already exists for this session
+        }
+        
+        console.log('Creating new player for session:', sessionId);
+        currentPlayerSessionId = sessionId;
         isPlayerReady = false; queuedSeekSeconds = null; document.getElementById('player').innerHTML = '';
             embedApi = new EmbedApi("player", {
             width: "100%", height: "100%", serverName: "ri.ap.panopto.com", sessionId: sessionId,
@@ -185,14 +977,38 @@
 
     window.seekTo = function(ts){ var s=ts; if(typeof ts==='object'&&ts) s=ts.start; s=Number(s); if(!isFinite(s)||s<0) return updateStatus('Invalid timestamp'); if(!isPlayerReady){ queuedSeekSeconds=s; try{ if(embedApi&&embedApi.loadVideo) embedApi.loadVideo(); }catch(e){} updateStatus('Loading... will jump to '+formatTime(s)); return; } try{embedApi.pauseVideo();}catch(e){} var d=Number(embedApi.getDuration&&embedApi.getDuration()); if(isFinite(d)&&s>d) s=Math.max(0,d-1); embedApi.seekTo(s); embedApi.playVideo(); updateStatus('Jumped to '+formatTime(s)); };
 
-    function populateSelector(list){ var sel=document.getElementById('videoSelect'); sel.innerHTML=list.map(v=>{ var when=v.uploadedAtFormatted||v.uploadedAt||''; var label=escapeHtml(v.title)+' — '+escapeHtml(when); return '<option value="'+v.sessionId+'">'+label+'</option>'; }).join(''); }
+    function populateSelector(list){ 
+        var sel=document.getElementById('videoSelect'); 
+        var html=list.map(v=>{ var when=v.uploadedAtFormatted||v.uploadedAt||''; var label=escapeHtml(v.title)+' — '+escapeHtml(when); return '<option value="'+v.sessionId+'">'+label+'</option>'; }).join('');
+        sel.innerHTML=html; 
+    }
     function findByIdOrSession(list, ident){ for(var i=0;i<list.length;i++){ if(list[i].sessionId===ident) return list[i]; } return null; }
 
-    function loadLesson(meta){
+    async function loadLesson(meta){
         currentMeta = meta; initPlayer(meta.sessionId);
+        await loadFlags(meta.sessionId);
         fetch('/api/timestamps?sessionId='+encodeURIComponent(meta.sessionId)).then(r=>{ if(!r.ok) throw new Error('Cannot load transcript'); return r.json(); })
             .then(data=>{ currentTranscriptRaw = data; var list=mapTimestamps(data); var box=document.getElementById('timestamps'); if(!list.length){ box.innerHTML='<div class="meta">No timestamps found.</div>'; return; }
-                box.innerHTML=list.map(function(it){ var who=roleLabel(it); var snippet=(it.text?escapeHtml(String(it.text).slice(0,160)):''); var roleClass = (who==='TEACHER')? 'role-teacher' : 'role-student'; return '<div class="time-item"><button class="seek-btn '+roleClass+'" onclick="window.seekTo('+it.start+')"><span class="time-chip">'+formatTime(it.start)+'</span><span class="time-body">'+(who?('<strong>'+who+': </strong>'):'')+snippet+'</span></button></div>'; }).join(''); })
+                box.innerHTML=list.map(function(it,idx){ 
+                    var who=roleLabel(it); 
+                    var snippet=(it.text?escapeHtml(String(it.text).slice(0,160)):''); 
+                    var roleClass = (who==='TEACHER')? 'role-teacher' : 'role-student'; 
+                    var isFlagged=flaggedTimestamps.has(it.start); 
+                    var flagId='flag_'+idx+'_'+it.start;
+                    return '<div class="time-item"><button class="seek-btn '+roleClass+'" onclick="window.seekTo('+it.start+')"><span class="time-chip">'+formatTime(it.start)+'</span><span class="time-body">'+(who?('<strong>'+who+': </strong>'):'')+snippet+'</span></button><div class="time-item-side"><button id="'+flagId+'" class="flag-btn '+(isFlagged?'flagged':'')+'" data-ts="'+it.start+'" data-speaker="'+escapeHtml(who)+'" data-role="'+escapeHtml(it.role||'')+'" title="'+(isFlagged?'Unflag this':'Flag this')+'">🚩</button></div></div>'; 
+                }).join(''); 
+                // Add event listeners to flag buttons
+                document.querySelectorAll('.flag-btn').forEach(btn=>{
+                    btn.addEventListener('click',function(e){
+                        e.stopPropagation();
+                        var ts=parseInt(this.dataset.ts);
+                        var speaker=this.dataset.speaker;
+                        var role=this.dataset.role;
+                        var text=currentTranscriptRaw.find(t=>t.start===ts)?.text||'';
+                        toggleFlag(ts,speaker,text,role,e);
+                    });
+                });
+            })
             .catch(e=>{ document.getElementById('timestamps').innerHTML='<div class="meta">'+escapeHtml(e.message)+'</div>'; updateStatus(e.message); });
     }
 
@@ -339,10 +1155,248 @@
         }
     }
 
+    // ========== FLAG FUNCTIONS ==========
+    async function loadFlags(sessionId){
+        flaggedTimestamps.clear();
+        try{ 
+            const r=await fetch('/api/flags?sessionId='+encodeURIComponent(sessionId)); 
+            if(r.ok){ 
+                allFlags = await r.json(); 
+                allFlags.forEach(f=>flaggedTimestamps.add(f.timestamp)); 
+            } 
+        }catch(e){console.error('Failed to load flags:',e);}
+    }
+
+    window.toggleFlag=async function(timestamp,speaker,text,role,event){
+        event.stopPropagation(); if(!currentMeta) return;
+        const isFlagged=flaggedTimestamps.has(timestamp);
+        const btn = event.target.closest('.flag-btn');
+        try{
+            if(isFlagged){ 
+                const flag=allFlags.find(f=>f.timestamp===timestamp); 
+                if(flag){ 
+                    await fetch('/api/flags/'+flag.id,{method:'DELETE'}); 
+                    flaggedTimestamps.delete(timestamp); 
+                    allFlags = allFlags.filter(f => f.id !== flag.id);
+                    if(btn){ btn.classList.remove('flagged'); btn.title='Flag this'; }
+                    
+                    // If Flagged tab is currently visible, reload it
+                    const flaggedTab = document.querySelector('.tab[data-tab="flagged"]');
+                    if(flaggedTab && flaggedTab.classList.contains('active')){
+                        loadFlaggedView(currentMeta.sessionId);
+                    }
+                }
+            } else { 
+                const r=await fetch('/api/flags',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sessionId:currentMeta.sessionId,timestamp,text,speaker,role})}); 
+                if(r.ok){ 
+                    const newFlag = await r.json();
+                    allFlags.push(newFlag);
+                    flaggedTimestamps.add(timestamp); 
+                    if(btn){ btn.classList.add('flagged'); btn.title='Unflag this'; }
+                    
+                    // If Flagged tab is currently visible, reload it
+                    const flaggedTab = document.querySelector('.tab[data-tab="flagged"]');
+                    if(flaggedTab && flaggedTab.classList.contains('active')){
+                        loadFlaggedView(currentMeta.sessionId);
+                    }
+                }
+            }
+        }catch(e){console.error('Toggle flag error:',e);}
+    };
+
+    async function loadFlaggedView(sessionId){
+        if(!sessionId && currentMeta) sessionId = currentMeta.sessionId;
+        if(!sessionId) return;
+        try{
+            const r=await fetch('/api/flags?sessionId='+encodeURIComponent(sessionId));
+            if(!r.ok) throw new Error('Failed to load flags');
+            allFlags=await r.json(); 
+            
+            // Sync flaggedTimestamps with loaded flags
+            flaggedTimestamps.clear();
+            allFlags.forEach(f => flaggedTimestamps.add(f.timestamp));
+            
+            const box=document.getElementById('flaggedList');
+            if(!allFlags.length){box.innerHTML='<div class="meta" style="text-align:center;padding:40px;color:var(--muted);">No flagged items yet.<br><small>Click the flag icon on any timestamp to flag it.</small></div>'; return;}
+            box.innerHTML=allFlags.map((f,idx)=>{
+                const time=formatTime(f.timestamp);
+                const noteId='note_'+f.id;
+                const micId='mic_'+f.id;
+                const publishBtnId='publish_'+f.id;
+                const isPublished = f.note && f.note.trim().length > 0;
+                return '<div class="flagged-item"><div class="flagged-header"><div><span class="time-chip">'+time+'</span><strong style="margin-left:8px;">'+(f.role||'')+':</strong></div><div class="flagged-actions"><button onclick="window.seekTo('+f.timestamp+')" style="padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:#fff;cursor:pointer;font-size:12px;">Jump</button><button onclick="removeFlag(\''+f.id+'\')" style="padding:4px 12px;border:1px solid #ef4444;color:#ef4444;border-radius:6px;background:#fff;cursor:pointer;font-size:12px;">Remove</button></div></div><div style="margin-top:8px;color:var(--muted);font-size:13px;">'+escapeHtml(f.text||'')+'</div><div class="flag-note-wrapper"><textarea id="'+noteId+'" class="flag-note" placeholder="Add notes..." onchange="updateFlagNote(\''+f.id+'\',this.value)">'+escapeHtml(f.note||'')+'</textarea><button id="'+micId+'" class="note-mic-btn" data-note-id="'+noteId+'" data-flag-id="'+f.id+'" title="Voice input"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg></button></div><button id="'+publishBtnId+'" class="publish-note-btn '+(isPublished?'published':'')+'" data-flag-id="'+f.id+'" data-note-id="'+noteId+'">'+(isPublished?'✓ Published':'Publish Note')+'</button></div>';
+            }).join('');
+            // Add event listeners for mic buttons and publish buttons
+            document.querySelectorAll('.note-mic-btn').forEach(btn=>{
+                btn.addEventListener('click', function(){ toggleNoteRecording(this); });
+            });
+            document.querySelectorAll('.publish-note-btn').forEach(btn=>{
+                btn.addEventListener('click', function(){ publishNote(this); });
+            });
+            // Change Publish -> Update on edit
+            document.querySelectorAll('.flag-note').forEach(textarea=>{
+                textarea.addEventListener('input', function(){
+                    const flagId = this.id.replace('note_', '');
+                    const btn = document.getElementById('publish_'+flagId);
+                    if(!btn) return;
+                    const hasText = this.value.trim().length > 0;
+                    if(hasText){
+                        btn.textContent = btn.classList.contains('published') ? 'Update Note' : 'Publish Note';
+                        btn.classList.add('update');
+                        btn.classList.remove('published');
+                    } else {
+                        btn.textContent = 'Publish Note';
+                        btn.classList.remove('update','published');
+                    }
+                });
+            });
+        }catch(e){console.error('Load flagged view error:',e); document.getElementById('flaggedList').innerHTML='<div class="meta">'+escapeHtml(e.message)+'</div>';}
+    }
+
+    window.removeFlag=async function(id){
+        try{
+            // Find the flag to get its timestamp
+            const flag = allFlags.find(f => f.id === id);
+            if(!flag) return;
+            
+            await fetch('/api/flags/'+id,{method:'DELETE'}); 
+            
+            // Remove from local state
+            flaggedTimestamps.delete(flag.timestamp);
+            allFlags = allFlags.filter(f => f.id !== id);
+            
+            // Update Timestamps tab UI - find all flag buttons and update the one matching this timestamp
+            document.querySelectorAll('.flag-btn').forEach(btn => {
+                const ts = parseInt(btn.dataset.ts);
+                if(ts === flag.timestamp){
+                    btn.classList.remove('flagged');
+                    btn.title = 'Flag this';
+                }
+            });
+            
+            // Reload Flagged view
+            if(currentMeta) loadFlaggedView(currentMeta.sessionId);
+        }catch(e){console.error('Remove flag error:',e);}
+    };
+
+    window.updateFlagNote=async function(id,note){
+        try{await fetch('/api/flags/'+id,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({note})});}catch(e){console.error('Update note error:',e);}
+    };
+
+    // Publish note to Supabase
+    async function publishNote(btn){
+        const flagId = btn.dataset.flagId;
+        const noteId = btn.dataset.noteId;
+        const textarea = document.getElementById(noteId);
+        const note = textarea.value.trim();
+        
+        if(!note){
+            alert('Please add some notes before publishing');
+            return;
+        }
+        
+        btn.disabled = true;
+        btn.textContent = 'Publishing...';
+        
+        try{
+            await fetch('/api/flags/'+flagId, {
+                method: 'PUT',
+                headers: {'content-type':'application/json'},
+                body: JSON.stringify({note})
+            });
+            
+            btn.textContent = '✓ Published';
+            btn.classList.add('published');
+            btn.classList.remove('update');
+            
+            setTimeout(() => {
+                btn.disabled = false;
+            }, 1000);
+        }catch(e){
+            console.error('Publish error:', e);
+            alert('Failed to publish note');
+            btn.disabled = false;
+            btn.textContent = 'Publish Note';
+        }
+    }
+
+    // Voice recording for notes
+    var noteRecorders = {};
+    async function toggleNoteRecording(btn){
+        const noteId = btn.dataset.noteId;
+        const flagId = btn.dataset.flagId;
+        const textarea = document.getElementById(noteId);
+        
+        if(noteRecorders[noteId]){
+            // Stop recording
+            noteRecorders[noteId].stop();
+            btn.classList.remove('recording');
+            delete noteRecorders[noteId];
+        } else {
+            // Start recording
+            try{
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                const recorder = new MediaRecorder(stream);
+                const chunks = [];
+                
+                recorder.ondataavailable = e => chunks.push(e.data);
+                recorder.onstop = async () => {
+                    stream.getTracks().forEach(t => t.stop());
+                    const blob = new Blob(chunks, { type: 'audio/webm' });
+                    const arrayBuffer = await blob.arrayBuffer();
+                    
+                    try{
+                        const r = await fetch('/api/realtime/transcribe', { 
+                            method: 'POST', 
+                            headers: { 'Content-Type': 'application/octet-stream' },
+                            body: arrayBuffer 
+                        });
+                        if(!r.ok) throw new Error('Transcription failed');
+                        const data = await r.json();
+                        const text = data.text || '';
+                        textarea.value = (textarea.value ? textarea.value + ' ' : '') + text;
+                        updateFlagNote(flagId, textarea.value);
+                    }catch(e){
+                        console.error('Note transcription error:', e);
+                    }
+                };
+                
+                recorder.start();
+                noteRecorders[noteId] = recorder;
+                btn.classList.add('recording');
+            }catch(e){
+                console.error('Microphone error:', e);
+                alert('Could not access microphone');
+            }
+        }
+    }
+
     // Boot
+    initializeMode();
+    
     fetch('/api/video-metadata').then(r=>{ if(!r.ok) throw new Error('Cannot load metadata'); return r.json(); })
-        .then(list=>{ metadataList=list; populateSelector(list); var ident=getQueryParam('sessionId')||getQueryParam('id'); var chosen=findByIdOrSession(list, ident)||list[0]; if(chosen){ document.getElementById('videoSelect').value=chosen.sessionId; loadLesson(chosen); } })
+        .then(list=>{ metadataList=list; populateSelector(list); 
+            var ident=getQueryParam('sessionId')||getQueryParam('id'); var chosen=findByIdOrSession(list, ident)||list[0]; if(chosen){ document.getElementById('videoSelect').value=chosen.sessionId; loadLesson(chosen); } 
+        })
         .catch(e=>updateStatus(e.message));
+    
+    // Mode button click handlers
+    document.querySelectorAll('.mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            switchMode(btn.dataset.mode);
+        });
+    });
+    
+    // Onboarding chat event listeners
+    document.getElementById('onboardingSendBtn').addEventListener('click', sendOnboardingMessage);
+    document.getElementById('onboardingInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendOnboardingMessage();
+        }
+    });
+    document.getElementById('onboardingMicBtn').addEventListener('click', toggleOnboardingMic);
+    document.getElementById('saveResearchBtn').addEventListener('click', saveResearchChanges);
 
     // Tab switching
     function switchTab(tabName) {
@@ -359,7 +1413,12 @@
     
     // Tab switching
     document.querySelectorAll('.tab').forEach(tab => {
-        tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+        tab.addEventListener('click', () => {
+            switchTab(tab.dataset.tab);
+            if(tab.dataset.tab==='flagged' && currentMeta){
+                loadFlaggedView(currentMeta.sessionId);
+            }
+        });
     });
 
     var tag=document.createElement('script'); tag.src='https://developers.panopto.com/scripts/embedapi.min.js'; var firstScriptTag=document.getElementsByTagName('script')[0]; firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
