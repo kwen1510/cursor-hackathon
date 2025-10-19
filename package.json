@@ -10,8 +10,15 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "express": "^5.1.0",
+    "@elevenlabs/elevenlabs-js": "^2.19.0",
+    "archiver": "^7.0.1",
+    "axios": "^1.12.2",
     "busboy": "^1.6.0",
-    "dotenv": "^16.4.5"
+    "dotenv": "^16.4.5",
+    "elevenlabs": "^1.59.0",
+    "express": "^5.1.0",
+    "form-data": "^4.0.4",
+    "groq-sdk": "^0.33.0",
+    "multer": "^2.0.2"
   }
 }

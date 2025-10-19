@@ -1,7 +1,20 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Lesson Analysis Assistant</title>
+    <title>Teach(er) - Lesson Analysis Assistant</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#3b82f6">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Teach(er)">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <meta name="description" content="Record, transcribe, and analyze your teaching with AI-powered insights">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -17,9 +30,9 @@
             --muted: #6b7280;
         }
         * { box-sizing: border-box; }
-        html, body { height: 100%; }
+        html, body { height: 100%; overflow-x: hidden; }
         body { margin: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-weight: 400; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; letter-spacing: -0.01em; }
-        .app { display: grid; grid-template-rows: 64px 1fr; height: 100vh; }
+        .app { display: grid; grid-template-rows: 64px 1fr; height: 100vh; overflow-x: hidden; }
         .topbar { display: flex; align-items: center; justify-content: space-between; padding: 0 20px; background: #ffffff; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 2; }
         .topbar h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
         .topbar .topbar-left { display: flex; align-items: center; gap: 20px; }
@@ -31,14 +44,14 @@
         .select { background: #ffffff; border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 10px; }
         .hidden { display: none !important; }
 
-        .main { display: flex; gap: 12px; padding: 20px; min-height: 0; height: calc(100vh - 64px); }
-        .left { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; min-height: 0; display: grid; grid-template-rows: 1fr; flex: 0 0 60%; }
+        .main { display: flex; gap: 12px; padding: 20px; min-height: 0; height: calc(100vh - 64px); overflow-x: hidden; max-width: 100vw; }
+        .left { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; min-height: 0; display: grid; grid-template-rows: 1fr; flex: 1 1 58%; min-width: 0; }
         .player-wrap { padding: 20px; }
         /* Draggable divider between panels */
-        .divider { width: 6px; cursor: col-resize; background: #e5e7eb; border-radius: 6px; align-self: stretch; }
+        .divider { width: 6px; cursor: col-resize; background: #e5e7eb; border-radius: 6px; align-self: stretch; flex-shrink: 0; }
         .divider:hover { background: #cbd5e1; }
 
-        .right { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; min-height: 0; display: flex; flex-direction: column; flex: 0 0 40%; }
+        .right { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; min-height: 0; display: flex; flex-direction: column; flex: 1 1 38%; min-width: 0; overflow-x: hidden; }
         .right-header { display: flex; border-bottom: 1px solid var(--border); }
         .tab { padding: 12px 16px; cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s; }
         .tab.active { border-bottom-color: var(--accent); background: rgba(37, 99, 235, 0.05); }
@@ -75,6 +88,47 @@
         .note-mic-btn:active { transform: scale(0.95); }
         .note-mic-btn.recording { color: #ef4444; animation: pulse-icon 1.2s ease-in-out infinite; }
         @keyframes pulse-icon { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.1); opacity: 0.8; } }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes pulse-recording { 0%, 100% { transform: scale(1); box-shadow: 0 8px 32px rgba(239, 68, 68, 0.3); } 50% { transform: scale(1.05); box-shadow: 0 12px 48px rgba(239, 68, 68, 0.5); } }
+        .recording-active { animation: pulse-recording 2s ease-in-out infinite !important; }
+        
+        .suggested-question-btn:hover {
+            background: #f8fafc !important;
+            border-color: #3b82f6 !important;
+            color: #3b82f6 !important;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        #aiAnalysisMicBtn:hover {
+            background: #2563eb;
+            transform: scale(1.05);
+        }
+        
+        #aiAnalysisMicBtn.recording {
+            background: #ef4444;
+            animation: pulse-icon 1.2s ease-in-out infinite;
+        }
+        
+        #aiAnalysisSendBtn:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+        }
+        
+        .ai-response-content strong {
+            color: #1e40af;
+            font-weight: 600;
+        }
+        
+        .ai-response-content {
+            word-wrap: break-word;
+        }
+        
+        #goalsResearchAnalysisBtn:hover {
+            background: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+        }
 
         #player { aspect-ratio: 16/9; background: #eef2ff; border-radius: 10px; }
 
@@ -132,10 +186,12 @@
 <div class="app">
     <div class="topbar">
         <div class="topbar-left">
-            <h1>Lesson Analysis Assistant</h1>
+            <h1>Teach(er)</h1>
             <div class="mode-nav">
                 <button class="mode-btn" data-mode="onboarding">Onboarding</button>
-                <button class="mode-btn active" data-mode="lesson_analysis">Lesson Analysis</button>
+                <button class="mode-btn active" data-mode="lesson_analysis">Analysis</button>
+                <button class="mode-btn" data-mode="progress">Progress</button>
+                <button class="mode-btn" data-mode="record">Record</button>
             </div>
         </div>
         <div class="actions" id="lessonSelector">
@@ -166,7 +222,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v3m0 0h-3m3 0h3M8.25 9v3a3.75 3.75 0 007.5 0V9m-7.5 0A3.75 3.75 0 0112 5.25v0A3.75 3.75 0 0115.75 9v3A3.75 3.75 0 0112 15.75v0A3.75 3.75 0 018.25 12V9z" />
                             </svg>
                         </button>
-                        <input id="onboardingInput" style="flex: 1; border-radius: 8px; border: 1px solid var(--border); padding: 12px 16px; font-size: 14px; outline: none;" placeholder="Tell me about your teaching goals..." />
+                        <textarea id="onboardingInput" rows="2" style="flex: 1; border-radius: 8px; border: 1px solid var(--border); padding: 12px 16px; font-size: 14px; outline: none; resize: vertical; min-height: 44px; font-family: inherit;" placeholder="Tell me about your teaching goals..."></textarea>
                         <button id="onboardingSendBtn" style="flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 8px; background: #3b82f6; color: white; padding: 12px 24px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
                             Send
                         </button>
@@ -223,6 +279,188 @@
             </div>
         </div>
         
+        <!-- Progress Mode View -->
+        <div id="progressView" class="hidden" style="flex: 1; padding: 40px; overflow-y: auto; background: var(--bg);">
+            <div style="max-width: 1200px; margin: 0 auto;">
+                <div style="margin-bottom: 24px;">
+                    <h1 style="font-size: 32px; font-weight: 700; margin: 0 0 8px 0;">Your Teaching Progress</h1>
+                    <p style="font-size: 16px; color: var(--muted); margin: 0;">Track your growth over time with AI-powered insights</p>
+                </div>
+                
+                <!-- Progress Filters -->
+                <div style="background: white; border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+                    <h3 style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600;">Filter Your Progress</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px; align-items: end;">
+                        <div>
+                            <label style="display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 6px;">Class</label>
+                            <select id="progressClassFilter" disabled style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; background: #f8fafc; color: var(--muted); cursor: not-allowed;">
+                                <option>All Classes (Coming Soon)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px;">From Date</label>
+                            <input type="date" id="progressFromDate" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px;">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px;">To Date</label>
+                            <input type="date" id="progressToDate" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px;">
+                        </div>
+                        <div>
+                            <button id="applyProgressFilters" style="padding: 8px 20px; border: none; border-radius: 6px; background: var(--accent); color: white; font-weight: 600; cursor: pointer; white-space: nowrap;">Apply Filters</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="progressContent">
+                    <div style="text-align: center; padding: 60px 20px; color: var(--muted);">
+                        <div style="font-size: 18px;">Loading your progress...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Record Mode View -->
+        <div id="recordView" class="hidden" style="flex: 1; display: flex; flex-direction: column; background: var(--bg); padding: 20px; overflow-y: auto;">
+            <div style="max-width: 700px; width: 100%; margin: 0 auto; text-align: center;">
+                <!-- Header -->
+                <div style="margin-bottom: 24px;">
+                    <h1 style="font-size: 28px; font-weight: 700; margin: 0 0 8px 0;">Record a Lesson</h1>
+                    <p style="font-size: 14px; color: var(--muted); margin: 0;">Audio will be automatically transcribed in real-time</p>
+                </div>
+                
+                <!-- Duration Selector -->
+                <div id="durationSelectorContainer" style="margin-bottom: 24px;">
+                    <label style="display: block; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 8px;">Duration</label>
+                    <select id="recordDurationSelect" style="width: 100%; max-width: 250px; padding: 10px 14px; border: 2px solid var(--border); border-radius: 8px; font-size: 14px; font-weight: 600; background: white; cursor: pointer; margin: 0 auto; display: block;">
+                        <option value="900">15 minutes</option>
+                        <option value="1800">30 minutes</option>
+                        <option value="2700">45 minutes</option>
+                        <option value="3600" selected>1 hour</option>
+                        <option value="5400">1.5 hours</option>
+                        <option value="7200">2 hours</option>
+                    </select>
+                </div>
+                
+                <!-- Record Button (toggles between record and stop) -->
+                <div style="margin-bottom: 20px;">
+                    <button id="recordButton" style="width: 160px; height: 160px; border: none; border-radius: 50%; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; font-size: 18px; font-weight: 700; cursor: pointer; box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3); transition: all 0.3s ease; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; margin: 0 auto;">
+                        <svg id="recordIcon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            <line x1="12" x2="12" y1="19" y2="22"/>
+                        </svg>
+                        <span id="recordButtonText">RECORD</span>
+                    </button>
+                </div>
+                
+                <!-- Timer Display -->
+                <div id="timerDisplay" style="font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: 1px; color: var(--text); margin-bottom: 20px; opacity: 0; transition: opacity 0.3s;">
+                    <span id="timerText">00:00</span>
+                    <span style="font-size: 16px; color: var(--muted);"> / </span>
+                    <span id="maxDurationText" style="font-size: 16px; color: var(--muted);">01:00:00</span>
+                </div>
+                
+                <!-- Status Indicators -->
+                <div id="recordingStatus" style="background: white; border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; opacity: 0; transition: opacity 0.3s;">
+                    <div style="display: flex; flex-direction: column; gap: 10px; align-items: flex-start; text-align: left;">
+                        <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
+                            <svg id="micStatusIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            <span style="font-size: 13px; font-weight: 600;">Microphone active</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
+                            <svg id="saveStatusIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            <span style="font-size: 13px; font-weight: 600;" id="saveStatusText">Auto-saving every 5 minutes</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
+                            <svg id="uploadStatusIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="20 6 9 17 4 12"/>
+                            </svg>
+                            <span style="font-size: 13px; font-weight: 600;" id="uploadStatusText">Transcribing in real-time</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Warnings -->
+                <div id="recordingWarnings" style="display: flex; flex-direction: column; gap: 12px; opacity: 0; transition: opacity 0.3s; margin-bottom: 16px;">
+                    <div style="display: flex; align-items: start; gap: 8px; padding: 10px; background: #fffbeb; border: 1px solid #fef3c7; border-radius: 8px; text-align: left;">
+                        <span style="font-size: 16px;">⚠️</span>
+                        <span style="font-size: 12px; color: #92400e;">Keep this tab open during recording</span>
+                    </div>
+                </div>
+                
+                <!-- Transcript Display (hidden by default) -->
+                <div id="transcriptDisplay" class="hidden" style="margin-top: 16px; padding: 16px; background: white; border: 1px solid var(--border); border-radius: 10px; text-align: left;">
+                    <div style="font-size: 13px; font-weight: 600; margin-bottom: 10px; color: #1f2937;">📝 Live Transcript</div>
+                    <div id="transcriptText" style="font-size: 13px; line-height: 1.6; color: #4b5563; max-height: 300px; overflow-y: auto; padding: 12px; background: #f9fafb; border-radius: 8px; white-space: pre-wrap;">
+                        Waiting for transcription...
+                    </div>
+                </div>
+                
+                <!-- Processing Indicator -->
+                <div id="processingIndicator" class="hidden" style="margin-top: 16px; padding: 16px; background: white; border: 1px solid var(--border); border-radius: 10px;">
+                    <div style="font-size: 14px; font-weight: 600; margin-bottom: 8px;">Processing your recording...</div>
+                    <div style="font-size: 13px; color: var(--muted);">This may take a few moments</div>
+                </div>
+                
+                <!-- Complete State -->
+                <div id="recordingComplete" class="hidden" style="margin-top: 16px; padding: 20px; background: white; border: 1px solid var(--border); border-radius: 10px;">
+                    <div style="font-size: 18px; font-weight: 700; margin-bottom: 10px; color: #10b981;">✓ Recording Complete!</div>
+                    <div style="font-size: 13px; color: var(--muted); margin-bottom: 16px;" id="recordingName">Lesson_20251019_143012</div>
+                    
+                    <!-- Final Transcript in Complete State -->
+                    <div id="finalTranscriptBox" style="margin-bottom: 16px; padding: 14px; background: #f9fafb; border-radius: 8px; text-align: left; max-height: 300px; overflow-y: auto;">
+                        <div style="font-size: 12px; font-weight: 600; margin-bottom: 8px; color: #1f2937;">Full Transcript:</div>
+                        <div id="finalTranscriptText" style="font-size: 13px; line-height: 1.6; color: #4b5563; white-space: pre-wrap;">
+                            No transcript available
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                        <button id="downloadRecordingBtn" style="padding: 10px 20px; border: 1px solid var(--border); border-radius: 8px; background: white; font-size: 13px; font-weight: 600; cursor: pointer;">
+                            Download Audio
+                        </button>
+                        <button id="newRecordingBtn" style="padding: 10px 20px; border: none; border-radius: 8px; background: var(--accent); color: white; font-size: 13px; font-weight: 600; cursor: pointer;">
+                            Record Another Lesson
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Stop Recording Confirmation Modal -->
+        <div id="stopRecordingModal" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;">
+            <div style="background: white; border-radius: 16px; padding: 32px; max-width: 480px; width: 90%; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);">
+                <div style="margin-bottom: 24px;">
+                    <div style="font-size: 24px; font-weight: 700; margin-bottom: 8px;">Stop Recording?</div>
+                    <div style="font-size: 15px; color: var(--muted); line-height: 1.6;">
+                        Are you sure you want to stop the recording? Your audio will be saved and transcribed.
+                    </div>
+                </div>
+                
+                <!-- Recording Duration Info -->
+                <div style="background: #f8fafc; border-radius: 12px; padding: 16px; margin-bottom: 24px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <span style="font-size: 14px; color: var(--muted);">Recorded Duration:</span>
+                        <span id="modalRecordedDuration" style="font-size: 18px; font-weight: 700; color: var(--text);">--:--</span>
+                    </div>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                    <button id="cancelStopRecording" style="padding: 12px 24px; border: 1px solid var(--border); border-radius: 8px; background: white; color: var(--text); font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                        Continue Recording
+                    </button>
+                    <button id="confirmStopRecording" style="padding: 12px 24px; border: none; border-radius: 8px; background: #ef4444; color: white; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                        Stop & Save
+                    </button>
+                </div>
+            </div>
+        </div>
+        
         <!-- Lesson Analysis Mode View -->
         <div class="left" id="leftPanel">
             <div class="player-wrap">
@@ -235,6 +473,7 @@
                 <div class="tab active" data-tab="timestamps">Timestamps</div>
                 <div class="tab" data-tab="chat">Assistant</div>
                 <div class="tab" data-tab="flagged">Flagged</div>
+                <div class="tab" data-tab="pedagogy">Pedagogy</div>
             </div>
             <div class="right-content" id="timestampsContent">
                 <div id="timestamps" style="padding: 16px; overflow-y: auto; flex: 1;"></div>
@@ -251,10 +490,90 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v3m0 0h-3m3 0h3M8.25 9v3a3.75 3.75 0 007.5 0V9m-7.5 0A3.75 3.75 0 0112 5.25v0A3.75 3.75 0 0115.75 9v3A3.75 3.75 0 0112 15.75v0A3.75 3.75 0 018.25 12V9z" />
                             </svg>
                         </button>
-                        <input id="chatInput" class="flex-1 rounded-lg border border-[var(--border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" placeholder="Ask about this lesson..." />
+                        <textarea id="chatInput" rows="2" class="flex-1 rounded-lg border border-[var(--border)] px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400 resize-vertical" style="min-height: 44px; font-family: inherit;" placeholder="Ask about this lesson..."></textarea>
                         <button id="sendBtn" class="shrink-0 inline-flex items-center justify-center rounded-lg bg-sky-600 text-white px-4 py-2 hover:brightness-110 transition">Send</button>
                     </div>
                 </div>
+            </div>
+            <div class="right-content hidden" id="pedagogyContent">
+                <div style="padding: 12px 16px; border-bottom: 1px solid var(--border);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                        <div>
+                            <h3 style="margin: 0 0 4px 0; font-size: 14px; font-weight: 600; color: var(--text);">Pedagogy Analysis</h3>
+                            <p style="margin: 0; font-size: 12px; color: var(--muted);">Customize which sections appear in your dashboard</p>
+                        </div>
+                        <button id="pedagogySettingsBtn" style="padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: white; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                            <span>⚙</span> Settings
+                        </button>
+                    </div>
+                </div>
+                <div id="pedagogyView" style="padding: 16px; overflow-y: auto; flex: 1;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Pedagogy Settings Modal -->
+    <div id="pedagogySettingsModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; border-radius: 12px; padding: 24px; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0; font-size: 20px; font-weight: 700;">Customize Dashboard</h2>
+                <button id="closeSettingsModal" style="border: none; background: none; font-size: 24px; cursor: pointer; color: var(--muted); line-height: 1;">&times;</button>
+            </div>
+            <p style="color: var(--muted); font-size: 14px; margin: 0 0 20px 0;">Choose which sections to display in your Pedagogy dashboard</p>
+            
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; padding: 12px; border: 1px solid var(--border); border-radius: 8px; transition: all 0.2s;">
+                    <input type="checkbox" id="setting_teachingSummary" checked style="width: 18px; height: 18px; cursor: pointer;">
+                    <div>
+                        <div style="font-weight: 600; font-size: 14px;">Teaching Summary</div>
+                        <div style="font-size: 12px; color: var(--muted);">AI-generated overview of teaching approach</div>
+                    </div>
+                </label>
+                
+                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; padding: 12px; border: 1px solid var(--border); border-radius: 8px; transition: all 0.2s;">
+                    <input type="checkbox" id="setting_teacherStudentTalk" checked style="width: 18px; height: 18px; cursor: pointer;">
+                    <div>
+                        <div style="font-weight: 600; font-size: 14px;">Teacher vs Student Talk</div>
+                        <div style="font-size: 12px; color: var(--muted);">Timeline visualization of speaking patterns</div>
+                    </div>
+                </label>
+                
+                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; padding: 12px; border: 1px solid var(--border); border-radius: 8px; transition: all 0.2s;">
+                    <input type="checkbox" id="setting_waitTime" checked style="width: 18px; height: 18px; cursor: pointer;">
+                    <div>
+                        <div style="font-weight: 600; font-size: 14px;">Wait Time Analysis</div>
+                        <div style="font-size: 12px; color: var(--muted);">Statistics and histogram of pause times</div>
+                    </div>
+                </label>
+                
+                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; padding: 12px; border: 1px solid var(--border); border-radius: 8px; transition: all 0.2s;">
+                    <input type="checkbox" id="setting_questionTypes" checked style="width: 18px; height: 18px; cursor: pointer;">
+                    <div>
+                        <div style="font-weight: 600; font-size: 14px;">Question Types</div>
+                        <div style="font-size: 12px; color: var(--muted);">Breakdown of questioning strategies</div>
+                    </div>
+                </label>
+                
+                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; padding: 12px; border: 1px solid var(--border); border-radius: 8px; transition: all 0.2s;">
+                    <input type="checkbox" id="setting_pedagogies" checked style="width: 18px; height: 18px; cursor: pointer;">
+                    <div>
+                        <div style="font-weight: 600; font-size: 14px;">Pedagogies Identified</div>
+                        <div style="font-size: 12px; color: var(--muted);">Teaching strategies observed in lesson</div>
+                    </div>
+                </label>
+                
+                <label style="display: flex; align-items: center; gap: 12px; cursor: pointer; padding: 12px; border: 1px solid var(--border); border-radius: 8px; transition: all 0.2s;">
+                    <input type="checkbox" id="setting_keyStrategies" checked style="width: 18px; height: 18px; cursor: pointer;">
+                    <div>
+                        <div style="font-weight: 600; font-size: 14px;">Key Teaching Strategies</div>
+                        <div style="font-size: 12px; color: var(--muted);">Bullet-point summary of key strategies</div>
+                    </div>
+                </label>
+            </div>
+            
+            <div style="display: flex; gap: 12px; margin-top: 24px; justify-content: flex-end;">
+                <button id="cancelSettings" style="padding: 10px 20px; border: 1px solid var(--border); border-radius: 8px; background: white; cursor: pointer; font-weight: 600;">Cancel</button>
+                <button id="saveSettings" style="padding: 10px 20px; border: none; border-radius: 8px; background: var(--accent); color: white; cursor: pointer; font-weight: 600;">Save Preferences</button>
             </div>
         </div>
     </div>
@@ -279,6 +598,18 @@
     
     // Mode switching
     function switchMode(mode) {
+        // Pause video when switching away from lesson_analysis mode
+        if (currentMode === 'lesson_analysis' && mode !== 'lesson_analysis') {
+            if (embedApi && isPlayerReady) {
+                try {
+                    embedApi.pause();
+                    console.log('🎬 Video paused when switching to:', mode);
+                } catch (error) {
+                    console.error('Error pausing video:', error);
+                }
+            }
+        }
+        
         currentMode = mode;
         const url = new URL(window.location.href);
         url.searchParams.set('mode', mode);
@@ -293,20 +624,48 @@
         const divider = document.getElementById('divider');
         const rightPanel = document.querySelector('.right');
         const onboardingView = document.getElementById('onboardingView');
+        const progressView = document.getElementById('progressView');
+        const recordView = document.getElementById('recordView');
         const lessonSelector = document.getElementById('lessonSelector');
         
         if (mode === 'onboarding') {
-            // Show onboarding, hide lesson analysis
+            // Show onboarding, hide others
             onboardingView.classList.remove('hidden');
+            progressView.classList.add('hidden');
+            recordView.classList.add('hidden');
             leftPanel.classList.add('hidden');
             divider.classList.add('hidden');
             rightPanel.classList.add('hidden');
             lessonSelector.classList.add('hidden');
             // Initialize onboarding chat
             initializeOnboardingChat();
-        } else {
-            // Show lesson analysis, hide onboarding
+        } else if (mode === 'progress') {
+            // Show progress, hide others
             onboardingView.classList.add('hidden');
+            progressView.classList.remove('hidden');
+            recordView.classList.add('hidden');
+            leftPanel.classList.add('hidden');
+            divider.classList.add('hidden');
+            rightPanel.classList.add('hidden');
+            lessonSelector.classList.add('hidden');
+            // Load progress data
+            loadProgressView();
+        } else if (mode === 'record') {
+            // Show record, hide others
+            onboardingView.classList.add('hidden');
+            progressView.classList.add('hidden');
+            recordView.classList.remove('hidden');
+            leftPanel.classList.add('hidden');
+            divider.classList.add('hidden');
+            rightPanel.classList.add('hidden');
+            lessonSelector.classList.add('hidden');
+            // Initialize recording view
+            initializeRecordView();
+        } else {
+            // Show lesson analysis, hide others
+            onboardingView.classList.add('hidden');
+            progressView.classList.add('hidden');
+            recordView.classList.add('hidden');
             leftPanel.classList.remove('hidden');
             divider.classList.remove('hidden');
             rightPanel.classList.remove('hidden');
@@ -987,6 +1346,12 @@
     async function loadLesson(meta){
         currentMeta = meta; initPlayer(meta.sessionId);
         await loadFlags(meta.sessionId);
+        
+        // Auto-reload pedagogy view if it's the active tab
+        const pedagogyTab = document.querySelector('.tab[data-tab="pedagogy"]');
+        if (pedagogyTab && pedagogyTab.classList.contains('active')) {
+            loadPedagogyView(meta.sessionId);
+        }
         fetch('/api/timestamps?sessionId='+encodeURIComponent(meta.sessionId)).then(r=>{ if(!r.ok) throw new Error('Cannot load transcript'); return r.json(); })
             .then(data=>{ currentTranscriptRaw = data; var list=mapTimestamps(data); var box=document.getElementById('timestamps'); if(!list.length){ box.innerHTML='<div class="meta">No timestamps found.</div>'; return; }
                 box.innerHTML=list.map(function(it,idx){ 
@@ -1078,9 +1443,9 @@
     }
     function transcriptAsText(){ try{ var list=mapTimestamps(currentTranscriptRaw||[]); return list.map(it=>'['+formatTime(it.start)+'] '+roleLabel(it)+': '+(it.text||'')).join('\n'); } catch(e){ return ''; } }
 
-    // Voice capture -> transcription
-    let mediaRecorder=null; let chunks=[]; let recording=false;
-    async function toggleMic(){ const btn=document.getElementById('micBtn'); if(!recording){ try{ const stream=await navigator.mediaDevices.getUserMedia({audio:true}); mediaRecorder=new MediaRecorder(stream,{mimeType:'audio/webm'}); chunks=[]; mediaRecorder.ondataavailable=e=>{ if(e.data && e.data.size>0) chunks.push(e.data); }; mediaRecorder.onstop=async ()=>{ const blob=new Blob(chunks,{type:'audio/webm'}); const resp=await fetch('/api/realtime/transcribe',{method:'POST', headers:{'content-type':'audio/webm'}, body: blob}); const textBody=await resp.text(); let data; try{ data=JSON.parse(textBody);}catch{ data={ text: textBody }; } const text=data.text || data.transcript || textBody; document.getElementById('chatInput').value = text; }; mediaRecorder.start(); recording=true; btn.classList.remove('bg-sky-500'); btn.classList.add('bg-red-500','ring-2','ring-red-400'); } catch(e){ console.error('Mic error:', e); } } else { if(mediaRecorder && mediaRecorder.state!=='inactive') mediaRecorder.stop(); recording=false; btn.classList.remove('bg-red-500','ring-2','ring-red-400'); btn.classList.add('bg-sky-500'); } }
+    // Voice capture -> transcription (for assistant chat)
+    let chatMediaRecorder=null; let chunks=[]; let recording=false;
+    async function toggleMic(){ const btn=document.getElementById('micBtn'); if(!recording){ try{ const stream=await navigator.mediaDevices.getUserMedia({audio:true}); chatMediaRecorder=new MediaRecorder(stream,{mimeType:'audio/webm'}); chunks=[]; chatMediaRecorder.ondataavailable=e=>{ if(e.data && e.data.size>0) chunks.push(e.data); }; chatMediaRecorder.onstop=async ()=>{ const blob=new Blob(chunks,{type:'audio/webm'}); const resp=await fetch('/api/realtime/transcribe',{method:'POST', headers:{'content-type':'audio/webm'}, body: blob}); const textBody=await resp.text(); let data; try{ data=JSON.parse(textBody);}catch{ data={ text: textBody }; } const text=data.text || data.transcript || textBody; document.getElementById('chatInput').value = text; }; chatMediaRecorder.start(); recording=true; btn.classList.remove('bg-sky-500'); btn.classList.add('bg-red-500','ring-2','ring-red-400'); } catch(e){ console.error('Mic error:', e); } } else { if(chatMediaRecorder && chatMediaRecorder.state!=='inactive') chatMediaRecorder.stop(); recording=false; btn.classList.remove('bg-red-500','ring-2','ring-red-400'); btn.classList.add('bg-sky-500'); } }
 
     // Streaming Claude request
     async function sendPrompt(){ const input=document.getElementById('chatInput'); const userText=input.value.trim(); if(!userText) return; addMsg('user', userText); input.value=''; const basePrompt=await getPromptTemplate(); const lesson=transcriptAsText(); const payload={ prompt: basePrompt, text: 'User request: '+userText+'\n\nFull lesson transcript (normalized to TEACHER/STUDENT):\n'+lesson };
@@ -1253,6 +1618,392 @@
         }catch(e){console.error('Load flagged view error:',e); document.getElementById('flaggedList').innerHTML='<div class="meta">'+escapeHtml(e.message)+'</div>';}
     }
 
+    // ========== PEDAGOGY SETTINGS ==========
+    let pedagogyPreferences = {
+        teachingSummary: true,
+        teacherStudentTalk: true,
+        waitTime: true,
+        questionTypes: true,
+        pedagogies: true,
+        keyStrategies: true
+    };
+    
+    async function loadPedagogyPreferences() {
+        try {
+            // Try to load from Supabase if we have email from onboarding
+            const email = localStorage.getItem('teacher_email');
+            if (email) {
+                const response = await fetch(`/api/pedagogy/preferences?email=${encodeURIComponent(email)}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.preferences) {
+                        pedagogyPreferences = data.preferences;
+                        return;
+                    }
+                }
+            }
+        } catch (error) {
+            console.log('Loading from localStorage instead');
+        }
+        
+        // Fallback to localStorage
+        const saved = localStorage.getItem('pedagogyPreferences');
+        if (saved) {
+            pedagogyPreferences = JSON.parse(saved);
+        }
+    }
+    
+    async function savePedagogyPreferences(prefs) {
+        pedagogyPreferences = prefs;
+        
+        // Save to localStorage as backup
+        localStorage.setItem('pedagogyPreferences', JSON.stringify(prefs));
+        
+        // Try to save to Supabase
+        try {
+            const email = localStorage.getItem('teacher_email');
+            if (email) {
+                await fetch('/api/pedagogy/preferences', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, preferences: prefs })
+                });
+            }
+        } catch (error) {
+            console.error('Error saving to Supabase:', error);
+        }
+    }
+    
+    function openPedagogySettings() {
+        const modal = document.getElementById('pedagogySettingsModal');
+        modal.style.display = 'flex';
+        
+        // Set checkboxes based on current preferences
+        document.getElementById('setting_teachingSummary').checked = pedagogyPreferences.teachingSummary;
+        document.getElementById('setting_teacherStudentTalk').checked = pedagogyPreferences.teacherStudentTalk;
+        document.getElementById('setting_waitTime').checked = pedagogyPreferences.waitTime;
+        document.getElementById('setting_questionTypes').checked = pedagogyPreferences.questionTypes;
+        document.getElementById('setting_pedagogies').checked = pedagogyPreferences.pedagogies;
+        document.getElementById('setting_keyStrategies').checked = pedagogyPreferences.keyStrategies;
+    }
+    
+    function closePedagogySettings() {
+        document.getElementById('pedagogySettingsModal').style.display = 'none';
+    }
+    
+    async function saveAndClosePedagogySettings() {
+        const newPrefs = {
+            teachingSummary: document.getElementById('setting_teachingSummary').checked,
+            teacherStudentTalk: document.getElementById('setting_teacherStudentTalk').checked,
+            waitTime: document.getElementById('setting_waitTime').checked,
+            questionTypes: document.getElementById('setting_questionTypes').checked,
+            pedagogies: document.getElementById('setting_pedagogies').checked,
+            keyStrategies: document.getElementById('setting_keyStrategies').checked
+        };
+        
+        await savePedagogyPreferences(newPrefs);
+        closePedagogySettings();
+        
+        // Reload the pedagogy view with new preferences
+        if (currentMeta) {
+            loadPedagogyView(currentMeta.sessionId);
+        }
+    }
+
+    // ========== PEDAGOGY VIEW HELPERS ==========
+    function formatTime(seconds) {
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.round(seconds % 60);
+        return mins + ':' + (secs < 10 ? '0' : '') + secs;
+    }
+
+    function toggleTalkView() {
+        const combined = document.getElementById('combinedTalkView');
+        const split = document.getElementById('splitTalkView');
+        
+        if (combined.style.display === 'none') {
+            // Show vertical split view
+            combined.style.display = 'block';
+            split.style.display = 'none';
+        } else {
+            // Show barcode view
+            combined.style.display = 'none';
+            split.style.display = 'block';
+        }
+    }
+
+    // ========== PEDAGOGY VIEW ==========
+    async function loadPedagogyView(sessionId){
+        if(!sessionId && currentMeta) sessionId = currentMeta.sessionId;
+        if(!sessionId) return;
+        
+        const box=document.getElementById('pedagogyView');
+        box.innerHTML='<div style="text-align:center;padding:20px;"><div style="font-size:24px;">⏳</div><div style="color:var(--muted);">Loading pedagogy analysis...</div></div>';
+        
+        try{
+            const r=await fetch('/api/pedagogy?sessionId='+encodeURIComponent(sessionId));
+            if(!r.ok) throw new Error('Failed to load pedagogy analysis');
+            const data=await r.json();
+            
+            if(!data || !data.pedagogy_analysis){
+                box.innerHTML='<div class="meta" style="text-align:center;padding:40px;color:var(--muted);">No pedagogy analysis available for this lesson.<br><small>Run Phase 3 pipeline to generate analysis.</small></div>';
+                return;
+            }
+            
+            // Store word-level transcript in memory for wait time analysis
+            window.currentWordTranscript = data.wordTranscript || null;
+            if (window.currentWordTranscript) {
+                console.log('✅ Word-level transcript loaded:', window.currentWordTranscript.words?.length || 0, 'words');
+            } else {
+                console.log('⚠️ No word-level transcript available');
+            }
+            
+            const p = data.pedagogy_analysis;
+            const qa = p.question_analysis || {};
+            const summary = qa.summary || {};
+            const qCounts = summary.question_type_counts || {};
+            const overall = p.overall_pedagogy || {};
+            const peds = overall.pedagogies_identified || [];
+            
+            // Calculate teacher vs student talk time and build timeline
+            const transcript = data.transcript || [];
+            let teacherTime = 0;
+            let studentTime = 0;
+            
+            // Find total lesson duration
+            let maxTime = 0;
+            transcript.forEach(seg => {
+                const duration = (seg.end || 0) - (seg.start || 0);
+                if (seg.role === 'TEACHER') {
+                    teacherTime += duration;
+                } else if (seg.role === 'STUDENT') {
+                    studentTime += duration;
+                }
+                maxTime = Math.max(maxTime, seg.end || 0);
+            });
+            
+            const totalDurationSeconds = Math.ceil(maxTime);
+            // Calculate available width based on actual pedagogy container
+            const pedagogyBox = document.getElementById('pedagogyView');
+            const availableWidth = pedagogyBox ? pedagogyBox.clientWidth - 80 : 600; // Leave room for padding
+            const containerWidth = Math.min(availableWidth, 700);
+            const pixelsPerSecond = containerWidth / totalDurationSeconds;
+            
+            // Build timeline: for each second, determine who's speaking
+            const timeline = new Array(totalDurationSeconds).fill('blank');
+            transcript.forEach(seg => {
+                const startSec = Math.floor(seg.start || 0);
+                const endSec = Math.ceil(seg.end || 0);
+                for (let i = startSec; i < endSec && i < totalDurationSeconds; i++) {
+                    timeline[i] = seg.role === 'TEACHER' ? 'teacher' : 'student';
+                }
+            });
+            
+            const totalTime = teacherTime + studentTime;
+            const talkTime = {
+                teacherTime: Math.round(teacherTime),
+                studentTime: Math.round(studentTime),
+                teacherPercent: totalTime > 0 ? Math.round((teacherTime / totalTime) * 100) : 0,
+                studentPercent: totalTime > 0 ? Math.round((studentTime / totalTime) * 100) : 0,
+                totalTime: totalTime
+            };
+            
+            let html = '';
+            
+            // Overall Summary
+            if(pedagogyPreferences.teachingSummary && overall.summary){
+                html += '<div style="background:#f8fafc;border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;">';
+                html += '<h3 style="margin:0 0 8px 0;font-size:16px;font-weight:700;">📊 Teaching Summary</h3>';
+                html += '<p style="margin:0;line-height:1.6;color:#1e293b;">'+escapeHtml(overall.summary)+'</p>';
+                html += '</div>';
+            }
+            
+            // Teacher vs Student Talk Time
+            if(pedagogyPreferences.teacherStudentTalk){
+            html += '<div style="background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;">';
+            html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">';
+            html += '<h3 style="margin:0;font-size:16px;font-weight:700;">🗣️ Teacher vs Student Talk</h3>';
+            html += '<button onclick="toggleTalkView()" style="padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:white;cursor:pointer;font-size:13px;">Toggle View</button>';
+            html += '</div>';
+            
+            // Stats on the side
+            html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">';
+            html += '<div style="padding:12px;background:#eff6ff;border-radius:8px;">';
+            html += '<div style="font-size:12px;color:#64748b;margin-bottom:4px;">Teacher Talk</div>';
+            html += '<div style="font-size:20px;font-weight:700;color:#3b82f6;">'+formatTime(talkTime.teacherTime)+' <span style="font-size:14px;font-weight:600;">('+talkTime.teacherPercent+'%)</span></div>';
+            html += '</div>';
+            html += '<div style="padding:12px;background:#fef3c7;border-radius:8px;">';
+            html += '<div style="font-size:12px;color:#64748b;margin-bottom:4px;">Student Talk</div>';
+            html += '<div style="font-size:20px;font-weight:700;color:#f59e0b;">'+formatTime(talkTime.studentTime)+' <span style="font-size:14px;font-weight:600;">('+talkTime.studentPercent+'%)</span></div>';
+            html += '</div>';
+            html += '</div>';
+            
+            // View 1: Vertical Split (default) - two rows showing teacher/student separately
+            html += '<div id="combinedTalkView">';
+            html += '<div style="background:#f8fafc;border-radius:8px;padding:12px;max-width:100%;overflow:hidden;">';
+            html += '<div style="margin-bottom:4px;"><small style="color:#64748b;">Teacher</small></div>';
+            html += '<div style="display:flex;height:30px;max-width:100%;background:white;border-radius:4px;overflow:hidden;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">';
+            
+            // Draw teacher timeline (barcode style)
+            for (let i = 0; i < timeline.length; i++) {
+                const color = timeline[i] === 'teacher' ? '#3b82f6' : '#ffffff';
+                html += '<div style="flex:0 0 '+pixelsPerSecond+'px;height:100%;background:'+color+';"></div>';
+            }
+            
+            html += '</div>';
+            html += '<div style="margin-bottom:4px;"><small style="color:#64748b;">Student</small></div>';
+            html += '<div style="display:flex;height:30px;max-width:100%;background:white;border-radius:4px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">';
+            
+            // Draw student timeline (barcode style)
+            for (let i = 0; i < timeline.length; i++) {
+                const color = timeline[i] === 'student' ? '#f59e0b' : '#ffffff';
+                html += '<div style="flex:0 0 '+pixelsPerSecond+'px;height:100%;background:'+color+';"></div>';
+            }
+            
+            html += '</div>';
+            html += '</div>';
+            html += '</div>';
+            
+            // View 2: Mixed barcode (hidden) - single bar with all segments
+            html += '<div id="splitTalkView" style="display:none;">';
+            html += '<div style="background:#f8fafc;border-radius:8px;padding:12px;max-width:100%;overflow:hidden;">';
+            html += '<div style="margin-bottom:4px;"><small style="color:#64748b;">Teacher & Student (chronological)</small></div>';
+            html += '<div style="display:flex;height:40px;max-width:100%;background:white;border-radius:4px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">';
+            
+            // Draw mixed timeline (barcode style)
+            for (let i = 0; i < timeline.length; i++) {
+                let color = '#ffffff'; // blank
+                if (timeline[i] === 'teacher') color = '#3b82f6';
+                if (timeline[i] === 'student') color = '#f59e0b';
+                html += '<div style="flex:0 0 '+pixelsPerSecond+'px;height:100%;background:'+color+';"></div>';
+            }
+            
+            html += '</div>';
+            html += '</div>';
+            html += '</div>';
+            
+            html += '</div>';
+            }
+            
+            // Wait Time Analysis
+            const waitTimes = p.wait_time_analysis;
+            if (pedagogyPreferences.waitTime && waitTimes && waitTimes.count > 0) {
+                html += '<div style="background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;">';
+                html += '<h3 style="margin:0 0 16px 0;font-size:16px;font-weight:700;">⏱️ Wait Time After Questions</h3>';
+                
+                // Stats grid
+                html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px;">';
+                html += '<div style="padding:12px;background:#f0fdf4;border-radius:8px;text-align:center;">';
+                html += '<div style="font-size:12px;color:#64748b;margin-bottom:4px;">Average</div>';
+                html += '<div style="font-size:24px;font-weight:700;color:#10b981;">'+waitTimes.average+'s</div>';
+                html += '</div>';
+                html += '<div style="padding:12px;background:#eff6ff;border-radius:8px;text-align:center;">';
+                html += '<div style="font-size:12px;color:#64748b;margin-bottom:4px;">Min</div>';
+                html += '<div style="font-size:20px;font-weight:700;color:#3b82f6;">'+waitTimes.min+'s</div>';
+                html += '</div>';
+                html += '<div style="padding:12px;background:#fef3c7;border-radius:8px;text-align:center;">';
+                html += '<div style="font-size:12px;color:#64748b;margin-bottom:4px;">Max</div>';
+                html += '<div style="font-size:20px;font-weight:700;color:#f59e0b;">'+waitTimes.max+'s</div>';
+                html += '</div>';
+                html += '</div>';
+                
+                // Histogram
+                html += '<div style="margin-top:16px;">';
+                html += '<div style="font-size:13px;font-weight:600;color:#64748b;margin-bottom:8px;">Distribution ('+waitTimes.count+' questions)</div>';
+                html += '<div style="display:flex;align-items:end;gap:4px;height:100px;padding:8px;background:#f8fafc;border-radius:6px;">';
+                
+                // Create histogram bins
+                const bins = [0, 1, 2, 3, 5, 8, 30];  // 0-1s, 1-2s, 2-3s, 3-5s, 5-8s, 8+s
+                const binCounts = new Array(bins.length - 1).fill(0);
+                waitTimes.distribution.forEach(wt => {
+                    for (let i = 0; i < bins.length - 1; i++) {
+                        if (wt >= bins[i] && wt < bins[i+1]) {
+                            binCounts[i]++;
+                            break;
+                        }
+                    }
+                });
+                
+                const maxCount = Math.max(...binCounts, 1);
+                binCounts.forEach((count, i) => {
+                    const height = (count / maxCount) * 100;
+                    const label = i === binCounts.length - 1 ? bins[i]+'s+' : bins[i]+'-'+bins[i+1]+'s';
+                    html += '<div style="flex:1;display:flex;flex-direction:column;align-items:center;">';
+                    html += '<div style="font-size:11px;font-weight:600;color:#3b82f6;margin-bottom:2px;">'+count+'</div>';
+                    html += '<div style="width:100%;background:#3b82f6;border-radius:4px 4px 0 0;height:'+height+'%;min-height:'+(count>0?'8px':'0')+';"></div>';
+                    html += '<div style="font-size:10px;color:#64748b;margin-top:4px;">'+label+'</div>';
+                    html += '</div>';
+                });
+                
+                html += '</div></div>';
+                html += '<div style="margin-top:12px;padding:10px;background:#fef3c7;border-radius:6px;font-size:12px;color:#92400e;">';
+                html += '💡 Research suggests 3-5 seconds of wait time increases response quality and student engagement.';
+                html += '</div>';
+                html += '</div>';
+            }
+            
+            // Question Type Breakdown
+            if(pedagogyPreferences.questionTypes){
+            html += '<div style="background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;">';
+            html += '<h3 style="margin:0 0 12px 0;font-size:16px;font-weight:700;">❓ Question Types</h3>';
+            html += '<div style="font-size:24px;font-weight:800;color:#3b82f6;margin-bottom:12px;">'+summary.total_questions_analyzed+' Total Questions</div>';
+            const qTypes = [
+                {key:'whole-class',label:'Whole Class',icon:'👥',color:'#3b82f6'},
+                {key:'rhetorical',label:'Rhetorical',icon:'💭',color:'#8b5cf6'},
+                {key:'cold-call',label:'Cold Call',icon:'👤',color:'#ef4444'},
+                {key:'hand-raising',label:'Hand Raising',icon:'✋',color:'#f59e0b'},
+                {key:'warm-call',label:'Warm Call',icon:'🙋',color:'#10b981'}
+            ];
+            qTypes.forEach(qt=>{
+                const count = qCounts[qt.key] || 0;
+                if(count > 0){
+                    const pct = summary.total_questions_analyzed > 0 ? Math.round((count / summary.total_questions_analyzed) * 100) : 0;
+                    html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;padding:8px;border-radius:8px;background:#f8fafc;">';
+                    html += '<span style="font-size:20px;">'+qt.icon+'</span>';
+                    html += '<div style="flex:1;"><div style="font-weight:600;color:#1e293b;">'+qt.label+'</div><div style="font-size:12px;color:var(--muted);">'+count+' questions ('+pct+'%)</div></div>';
+                    html += '<div style="width:60px;height:4px;background:#e5e7eb;border-radius:2px;overflow:hidden;"><div style="width:'+pct+'%;height:100%;background:'+qt.color+';"></div></div>';
+                    html += '</div>';
+                }
+            });
+            html += '</div>';
+            }
+            
+            // Pedagogies Identified
+            if(pedagogyPreferences.pedagogies && peds.length > 0){
+                html += '<div style="background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;">';
+                html += '<h3 style="margin:0 0 12px 0;font-size:16px;font-weight:700;">🎓 Pedagogies Identified</h3>';
+                peds.forEach(ped=>{
+                    const freqColor = ped.frequency==='high' ? '#10b981' : ped.frequency==='medium' ? '#f59e0b' : '#6b7280';
+                    html += '<div style="margin-bottom:12px;padding:12px;border-left:3px solid '+freqColor+';background:#f8fafc;border-radius:6px;">';
+                    html += '<div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:4px;">';
+                    html += '<strong style="color:#1e293b;text-transform:capitalize;">'+escapeHtml(ped.pedagogy)+'</strong>';
+                    html += '<span style="font-size:11px;padding:2px 8px;border-radius:12px;background:'+freqColor+';color:white;font-weight:600;text-transform:uppercase;">'+escapeHtml(ped.frequency)+'</span>';
+                    html += '</div>';
+                    html += '<div style="font-size:13px;color:#64748b;line-height:1.5;">'+escapeHtml(ped.evidence)+'</div>';
+                    html += '</div>';
+                });
+                html += '</div>';
+            }
+            
+            // Key Strategies
+            if(pedagogyPreferences.keyStrategies && overall.key_strategies && overall.key_strategies.length > 0){
+                html += '<div style="background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:20px;">';
+                html += '<h3 style="margin:0 0 12px 0;font-size:16px;font-weight:700;">💡 Key Teaching Strategies</h3>';
+                html += '<ul style="margin:0;padding-left:20px;">';
+                overall.key_strategies.forEach(s=>{
+                    html += '<li style="margin-bottom:6px;color:#1e293b;line-height:1.5;">'+escapeHtml(s)+'</li>';
+                });
+                html += '</ul></div>';
+            }
+            
+            box.innerHTML = html;
+            
+        }catch(e){
+            console.error('Load pedagogy view error:',e);
+            box.innerHTML='<div class="meta" style="text-align:center;padding:40px;color:var(--muted);">❌ Error loading pedagogy analysis<br><small>'+escapeHtml(e.message)+'</small></div>';
+        }
+    }
+
     window.removeFlag=async function(id){
         try{
             // Find the flag to get its timestamp
@@ -1371,8 +2122,491 @@
         }
     }
 
+    // ========== PROGRESS VIEW ==========
+    
+    function initializeProgressFilters() {
+        // Set default: 2 months from today
+        const today = new Date();
+        const twoMonthsAgo = new Date();
+        twoMonthsAgo.setMonth(today.getMonth() - 2);
+        
+        // Format dates for input fields (YYYY-MM-DD)
+        const formatDate = (date) => date.toISOString().split('T')[0];
+        
+        document.getElementById('progressFromDate').value = formatDate(twoMonthsAgo);
+        document.getElementById('progressToDate').value = formatDate(today);
+    }
+    
+    async function loadProgressView(useFilters = true) {
+        const progressContent = document.getElementById('progressContent');
+        progressContent.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--muted);"><div style="font-size:18px;">Loading your progress...</div></div>';
+        
+        // Initialize filters if not already set
+        if (!document.getElementById('progressFromDate').value) {
+            initializeProgressFilters();
+        }
+        
+        try {
+            // Build query string with filters
+            let url = '/api/progress';
+            if (useFilters) {
+                const fromDate = document.getElementById('progressFromDate').value;
+                const toDate = document.getElementById('progressToDate').value;
+                url += `?fromDate=${encodeURIComponent(fromDate)}&toDate=${encodeURIComponent(toDate)}`;
+            }
+            
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Failed to load progress data');
+            const data = await response.json();
+            
+            renderProgressView(data);
+        } catch (error) {
+            console.error('Error loading progress:', error);
+            progressContent.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--muted);"><div style="font-size:18px;font-weight:600;">Error loading progress data</div><div style="font-size:14px;margin-top:8px;">'+escapeHtml(error.message)+'</div></div>';
+        }
+    }
+    
+    let currentProgressLessons = []; // Store for report generation
+    
+    function getSelectedLessons() {
+        // Get checked lesson checkboxes and filter currentProgressLessons
+        const checkedBoxes = Array.from(document.querySelectorAll('.lesson-select-checkbox:checked'));
+        const selectedSessionIds = checkedBoxes.map(cb => cb.dataset.sessionId);
+        return currentProgressLessons.filter(lesson => selectedSessionIds.includes(lesson.sessionId));
+    }
+    
+    function renderProgressView(data) {
+        const progressContent = document.getElementById('progressContent');
+        const lessons = data.lessons || [];
+        currentProgressLessons = lessons; // Store for report generation
+        
+        if (lessons.length === 0) {
+            progressContent.innerHTML = '<div style="text-align:center;padding:60px 20px;color:var(--muted);"><div style="font-size:18px;font-weight:600;">No lessons yet</div><div style="font-size:14px;margin-top:8px;">Upload your first lesson to start tracking progress</div></div>';
+            return;
+        }
+        
+        let html = '';
+        
+        // Lesson Timeline (simplified list at top)
+        html += '<div style="background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:24px 32px;margin-bottom:24px;box-shadow:0 2px 8px rgba(0,0,0,0.05);">';
+        html += '<h2 style="margin:0 0 20px 0;font-size:20px;font-weight:700;">Lessons in Range</h2>';
+        html += '<div style="display:flex;flex-direction:column;gap:12px;">';
+        
+        lessons.slice().reverse().forEach((lesson, idx) => {
+            const date = new Date(lesson.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            html += '<div style="display:flex;align-items:center;gap:12px;padding:12px;border-radius:8px;background:#f8fafc;">';
+            html += '<input type="checkbox" class="lesson-select-checkbox" data-session-id="'+escapeHtml(lesson.sessionId)+'" checked style="width:18px;height:18px;cursor:pointer;accent-color:#3b82f6;">';
+            html += '<div style="font-size:13px;color:#64748b;min-width:100px;">'+date+'</div>';
+            html += '<div style="font-size:15px;font-weight:600;color:#1e293b;flex:1;">'+escapeHtml(lesson.title)+'</div>';
+            html += '</div>';
+        });
+        
+        html += '</div>';
+        html += '</div>';
+        
+        // Metrics Over Time
+        html += '<div style="background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:32px;margin-bottom:24px;box-shadow:0 2px 8px rgba(0,0,0,0.05);">';
+        html += '<h2 style="margin:0 0 24px 0;font-size:20px;font-weight:700;">Metrics Over Time</h2>';
+        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px;">';
+        
+        // Calculate averages
+        const avgTeacherTalk = lessons.reduce((sum, l) => sum + (l.teacherTalkPercent || 0), 0) / lessons.length;
+        const avgWaitTime = lessons.reduce((sum, l) => sum + (l.avgWaitTime || 0), 0) / lessons.filter(l => l.avgWaitTime).length;
+        const totalQuestions = lessons.reduce((sum, l) => sum + (l.totalQuestions || 0), 0);
+        
+        html += '<div style="padding:20px;background:#eff6ff;border-radius:8px;">';
+        html += '<div style="font-size:14px;color:#64748b;margin-bottom:8px;">Avg Teacher Talk</div>';
+        html += '<div style="font-size:32px;font-weight:700;color:#3b82f6;">'+Math.round(avgTeacherTalk)+'%</div>';
+        html += '</div>';
+        
+        html += '<div style="padding:20px;background:#f0fdf4;border-radius:8px;">';
+        html += '<div style="font-size:14px;color:#64748b;margin-bottom:8px;">Avg Wait Time</div>';
+        html += '<div style="font-size:32px;font-weight:700;color:#10b981;">'+avgWaitTime.toFixed(1)+'s</div>';
+        html += '</div>';
+        
+        html += '<div style="padding:20px;background:#fef3c7;border-radius:8px;">';
+        html += '<div style="font-size:14px;color:#64748b;margin-bottom:8px;">Total Questions</div>';
+        html += '<div style="font-size:32px;font-weight:700;color:#f59e0b;">'+totalQuestions+'</div>';
+        html += '</div>';
+        
+        html += '<div style="padding:20px;background:#fce7f3;border-radius:8px;">';
+        html += '<div style="font-size:14px;color:#64748b;margin-bottom:8px;">Total Lessons</div>';
+        html += '<div style="font-size:32px;font-weight:700;color:#ec4899;">'+lessons.length+'</div>';
+        html += '</div>';
+        
+        html += '</div>';
+        html += '</div>';
+        
+        // Individual Lesson Metrics
+        html += '<div style="background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:32px;margin-bottom:24px;box-shadow:0 2px 8px rgba(0,0,0,0.05);">';
+        html += '<h2 style="margin:0 0 20px 0;font-size:20px;font-weight:700;">Lesson Details</h2>';
+        html += '<div style="overflow-x:auto;">';
+        html += '<table style="width:100%;border-collapse:collapse;font-size:14px;">';
+        html += '<thead><tr style="border-bottom:2px solid var(--border);text-align:left;">';
+        html += '<th style="padding:12px 8px;font-weight:600;color:#64748b;">Date</th>';
+        html += '<th style="padding:12px 8px;font-weight:600;color:#64748b;">Lesson</th>';
+        html += '<th style="padding:12px 8px;font-weight:600;color:#64748b;">Teacher Talk</th>';
+        html += '<th style="padding:12px 8px;font-weight:600;color:#64748b;">Wait Time</th>';
+        html += '<th style="padding:12px 8px;font-weight:600;color:#64748b;">Questions</th>';
+        html += '</tr></thead>';
+        html += '<tbody>';
+        
+        lessons.slice().reverse().forEach((lesson) => {
+            const date = new Date(lesson.uploadedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            html += '<tr style="border-bottom:1px solid #f1f5f9;">';
+            html += '<td style="padding:12px 8px;color:#64748b;">'+date+'</td>';
+            html += '<td style="padding:12px 8px;font-weight:500;color:#1e293b;">'+escapeHtml(lesson.title)+'</td>';
+            html += '<td style="padding:12px 8px;"><span style="display:inline-block;padding:4px 12px;background:#eff6ff;color:#3b82f6;border-radius:12px;font-weight:600;">'+Math.round(lesson.teacherTalkPercent || 0)+'%</span></td>';
+            html += '<td style="padding:12px 8px;"><span style="display:inline-block;padding:4px 12px;background:#f0fdf4;color:#10b981;border-radius:12px;font-weight:600;">'+(lesson.avgWaitTime ? lesson.avgWaitTime.toFixed(1)+'s' : 'N/A')+'</span></td>';
+            html += '<td style="padding:12px 8px;"><span style="display:inline-block;padding:4px 12px;background:#fef3c7;color:#f59e0b;border-radius:12px;font-weight:600;">'+(lesson.totalQuestions || 0)+'</span></td>';
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table>';
+        html += '</div>';
+        html += '</div>';
+        
+        // AI Analysis Section with Chat Interface
+        html += '<div id="aiReportSection" style="background:#ffffff;border:1px solid var(--border);border-radius:12px;padding:32px;box-shadow:0 2px 8px rgba(0,0,0,0.05);">';
+        html += '<h2 style="margin:0 0 8px 0;font-size:20px;font-weight:700;">AI Analysis</h2>';
+        html += '<p style="margin:0 0 20px 0;font-size:14px;color:var(--muted);">Ask questions about your teaching progress</p>';
+        
+        // Special Goals & Research Analysis Button
+        html += '<div style="margin-bottom:24px;padding:16px;background:linear-gradient(135deg, #10b981 0%, #059669 100%);border-radius:12px;">';
+        html += '<button id="goalsResearchAnalysisBtn" style="width:100%;padding:14px 20px;border:2px solid white;border-radius:8px;background:rgba(255,255,255,0.95);color:#059669;font-size:15px;font-weight:700;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:10px;">';
+        html += '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width:20px;height:20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>';
+        html += 'Analyze Progress Towards My Goals & Research';
+        html += '</button>';
+        html += '<div style="font-size:12px;color:white;margin-top:8px;text-align:center;opacity:0.9;">Review how well you\'re meeting your teaching goals and applying research-backed strategies</div>';
+        html += '</div>';
+        
+        // Suggested Questions
+        html += '<div style="margin-bottom:20px;">';
+        html += '<div style="font-size:13px;font-weight:600;color:#64748b;margin-bottom:12px;">Suggested Questions:</div>';
+        html += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+        
+        const suggestedQuestions = [
+            { text: "How has my wait time improved?", tooltip: "Analyzes changes in your pause times after questions over time" },
+            { text: "Am I giving students more voice?", tooltip: "Analyzes teacher talk vs student talk trends" },
+            { text: "What questioning strategies work best?", tooltip: "Reviews your question types and their effectiveness" },
+            { text: "How do I compare to research standards?", tooltip: "Compares your metrics to research-backed best practices" },
+            { text: "What should I focus on next?", tooltip: "Provides personalized recommendations based on your data" }
+        ];
+        
+        suggestedQuestions.forEach((q, idx) => {
+            html += '<button class="suggested-question-btn" data-question="'+escapeHtml(q.text)+'" title="'+escapeHtml(q.tooltip)+'" style="padding:8px 16px;border:1px solid #e5e7eb;border-radius:20px;background:white;color:#374151;font-size:13px;cursor:pointer;transition:all 0.2s;white-space:nowrap;">'+escapeHtml(q.text)+'</button>';
+        });
+        
+        html += '</div>';
+        html += '</div>';
+        
+        // Chat/Response Area
+        html += '<div id="aiAnalysisMessages" style="min-height:200px;max-height:500px;overflow-y:auto;padding:16px;background:#f8fafc;border-radius:8px;margin-bottom:16px;"></div>';
+        
+        // Input Area
+        html += '<div style="display:flex;gap:8px;align-items:flex-start;">';
+        html += '<button id="aiAnalysisMicBtn" style="flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:#3b82f6;color:white;border:none;cursor:pointer;transition:all 0.2s;margin-top:0;" title="Voice input"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:20px;height:20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v3m0 0h-3m3 0h3M8.25 9v3a3.75 3.75 0 007.5 0V9m-7.5 0A3.75 3.75 0 0112 5.25v0A3.75 3.75 0 0115.75 9v3A3.75 3.75 0 0112 15.75v0A3.75 3.75 0 018.25 12V9z" /></svg></button>';
+        html += '<textarea id="aiAnalysisInput" rows="2" placeholder="Ask a question about your teaching progress..." style="flex:1;padding:12px 16px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;min-height:44px;"></textarea>';
+        html += '<button id="aiAnalysisSendBtn" style="padding:0 24px;height:44px;border:none;border-radius:8px;background:var(--accent);color:white;font-weight:600;cursor:pointer;transition:all 0.2s;">Ask</button>';
+        html += '</div>';
+        
+        html += '</div>';
+        
+        progressContent.innerHTML = html;
+        
+        // Add event listeners for AI Analysis section
+        setTimeout(() => {
+            setupAIAnalysisListeners();
+        }, 100);
+    }
+    
+    let aiAnalysisRecorder = null;
+    let aiAnalysisRecording = false;
+    
+    function setupAIAnalysisListeners() {
+        // Goals & Research Analysis Button
+        const goalsBtn = document.getElementById('goalsResearchAnalysisBtn');
+        if (goalsBtn) {
+            goalsBtn.addEventListener('click', () => {
+                const question = "Based on my teaching goals and the research-backed strategies I selected, how am I doing? Please provide specific feedback on my progress towards my goals and how well I'm implementing the recommended teaching strategies.";
+                sendAIAnalysisQuestion(question, true); // true = include goals & research
+            });
+        }
+        
+        // Suggested question buttons
+        document.querySelectorAll('.suggested-question-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const question = btn.dataset.question;
+                sendAIAnalysisQuestion(question);
+            });
+        });
+        
+        // Send button
+        const sendBtn = document.getElementById('aiAnalysisSendBtn');
+        if (sendBtn) {
+            sendBtn.addEventListener('click', () => {
+                const input = document.getElementById('aiAnalysisInput');
+                const question = input.value.trim();
+                if (question) {
+                    sendAIAnalysisQuestion(question);
+                    input.value = '';
+                }
+            });
+        }
+        
+        // Enter key to send
+        const input = document.getElementById('aiAnalysisInput');
+        if (input) {
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    const question = input.value.trim();
+                    if (question) {
+                        sendAIAnalysisQuestion(question);
+                        input.value = '';
+                    }
+                }
+            });
+        }
+        
+        // Mic button
+        const micBtn = document.getElementById('aiAnalysisMicBtn');
+        if (micBtn) {
+            micBtn.addEventListener('click', toggleAIAnalysisRecording);
+        }
+    }
+    
+    function addAIAnalysisMessage(content, isUser = false) {
+        const messagesDiv = document.getElementById('aiAnalysisMessages');
+        if (!messagesDiv) return;
+        
+        const messageDiv = document.createElement('div');
+        messageDiv.style.cssText = `margin-bottom:16px;display:flex;${isUser ? 'justify-content:flex-end' : 'justify-content:flex-start'};`;
+        
+        const bubble = document.createElement('div');
+        bubble.style.cssText = `max-width:80%;padding:12px 16px;border-radius:12px;${isUser ? 'background:#3b82f6;color:white;' : 'background:white;border:1px solid #e5e7eb;color:#1e293b;'}font-size:14px;line-height:1.6;`;
+        
+        if (isUser) {
+            bubble.textContent = content;
+        } else {
+            // Format AI response with better markdown handling
+            bubble.classList.add('ai-response-content');
+            let formatted = escapeHtml(content);
+            
+            // Parse and convert markdown tables to HTML tables
+            const tableRegex = /(\|.+\|\n)+/g;
+            formatted = formatted.replace(tableRegex, (tableMatch) => {
+                const rows = tableMatch.trim().split('\n').filter(row => row.includes('|'));
+                if (rows.length < 2) return tableMatch;
+                
+                // Check if second row is separator (|---|---|)
+                const isSeparatorRow = (row) => /^\|[\s\-\|]+\|$/.test(row);
+                const hasSeparator = isSeparatorRow(rows[1]);
+                
+                const parseRow = (row) => {
+                    return row.split('|')
+                        .slice(1, -1) // Remove empty first and last elements
+                        .map(cell => cell.trim());
+                };
+                
+                let html = '<table style="border-collapse:collapse;width:100%;margin:12px 0;font-size:13px;"><thead>';
+                
+                // Header row
+                const headers = parseRow(rows[0]);
+                html += '<tr style="background:#f9fafb;border-bottom:2px solid #e5e7eb;">';
+                headers.forEach(header => {
+                    html += `<th style="padding:10px 12px;text-align:left;font-weight:600;color:#374151;border:1px solid #e5e7eb;">${header}</th>`;
+                });
+                html += '</tr></thead><tbody>';
+                
+                // Data rows (skip separator if present)
+                const dataRows = hasSeparator ? rows.slice(2) : rows.slice(1);
+                dataRows.forEach((row, idx) => {
+                    if (isSeparatorRow(row)) return;
+                    const cells = parseRow(row);
+                    const bgColor = idx % 2 === 0 ? '#ffffff' : '#f9fafb';
+                    html += `<tr style="background:${bgColor};">`;
+                    cells.forEach(cell => {
+                        html += `<td style="padding:8px 12px;border:1px solid #e5e7eb;color:#1e293b;">${cell}</td>`;
+                    });
+                    html += '</tr>';
+                });
+                
+                html += '</tbody></table>';
+                return html;
+            });
+            
+            // Convert --- separators to spacing
+            formatted = formatted.replace(/\n---\n/g, '<div style="margin:10px 0;"></div>');
+            
+            // Convert markdown-style bold
+            formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // Convert ### headers to bold headers with spacing
+            formatted = formatted.replace(/###\s+(.*?)(?=\n|$)/g, '<div style="font-weight:600;margin-top:14px;margin-bottom:6px;color:#1e293b;font-size:15px;">$1</div>');
+            
+            // Convert list items (lines starting with - or *)
+            formatted = formatted.replace(/\n([•\-\*])\s+/g, '\n<br>• ');
+            
+            // Convert double line breaks to moderate paragraph spacing
+            formatted = formatted.replace(/\n\n/g, '<div style="margin:8px 0;"></div>');
+            
+            // Convert remaining single line breaks
+            formatted = formatted.replace(/\n/g, '<br>');
+            
+            bubble.innerHTML = formatted;
+        }
+        
+        messageDiv.appendChild(bubble);
+        messagesDiv.appendChild(messageDiv);
+        
+        // Scroll to show the new message (not the very bottom)
+        if (!isUser) {
+            // For AI messages, scroll to show the message itself
+            setTimeout(() => {
+                messageDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        } else {
+            // For user messages, just scroll to bottom
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+    }
+    
+    async function sendAIAnalysisQuestion(question, includeGoals = false) {
+        if (!question.trim()) return;
+        
+        // Add user message
+        addAIAnalysisMessage(question, true);
+        
+        // Add loading message
+        const messagesDiv = document.getElementById('aiAnalysisMessages');
+        const loadingDiv = document.createElement('div');
+        loadingDiv.id = 'aiAnalysisLoading';
+        loadingDiv.style.cssText = 'margin-bottom:16px;display:flex;justify-content:flex-start;';
+        loadingDiv.innerHTML = '<div style="max-width:80%;padding:12px 16px;border-radius:12px;background:white;border:1px solid #e5e7eb;color:#64748b;font-size:14px;">Analyzing your data<span class="loading-dots">...</span></div>';
+        messagesDiv.appendChild(loadingDiv);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        
+        try {
+            // Get selected lessons only
+            const selectedLessons = getSelectedLessons();
+            if (selectedLessons.length === 0) {
+                if (loadingDiv.parentNode) loadingDiv.remove();
+                addAIAnalysisMessage('Please select at least one lesson to analyze.', false);
+                return;
+            }
+            
+            // Get current filter dates
+            const fromDate = document.getElementById('progressFromDate').value;
+            const toDate = document.getElementById('progressToDate').value;
+            
+            const response = await fetch('/api/progress/ask-question', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    question: question,
+                    lessons: selectedLessons,
+                    fromDate: fromDate,
+                    toDate: toDate,
+                    includeGoals: includeGoals
+                })
+            });
+            
+            if (!response.ok) throw new Error('Failed to get response');
+            
+            const data = await response.json();
+            const answer = data.answer || 'No response generated';
+            
+            // Remove loading
+            if (loadingDiv.parentNode) {
+                loadingDiv.remove();
+            }
+            
+            // Add AI response
+            addAIAnalysisMessage(answer, false);
+            
+        } catch (error) {
+            console.error('Error getting AI response:', error);
+            if (loadingDiv.parentNode) {
+                loadingDiv.remove();
+            }
+            addAIAnalysisMessage('Sorry, I encountered an error analyzing your data. Please try again.', false);
+        }
+    }
+    
+    async function toggleAIAnalysisRecording() {
+        const micBtn = document.getElementById('aiAnalysisMicBtn');
+        
+        if (aiAnalysisRecording) {
+            // Stop recording
+            aiAnalysisRecording = false;
+            micBtn.classList.remove('recording');
+            // Restore microphone icon
+            micBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:20px;height:20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v3m0 0h-3m3 0h3M8.25 9v3a3.75 3.75 0 007.5 0V9m-7.5 0A3.75 3.75 0 0112 5.25v0A3.75 3.75 0 0115.75 9v3A3.75 3.75 0 0112 15.75v0A3.75 3.75 0 018.25 12V9z" /></svg>';
+            
+            if (aiAnalysisRecorder) {
+                aiAnalysisRecorder.stop();
+            }
+        } else {
+            // Start recording
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                aiAnalysisRecorder = new MediaRecorder(stream);
+                const chunks = [];
+                
+                aiAnalysisRecorder.ondataavailable = (e) => chunks.push(e.data);
+                aiAnalysisRecorder.onstop = async () => {
+                    const blob = new Blob(chunks, { type: 'audio/webm' });
+                    await transcribeAIAnalysisAudio(blob);
+                    stream.getTracks().forEach(track => track.stop());
+                };
+                
+                aiAnalysisRecorder.start();
+                aiAnalysisRecording = true;
+                micBtn.classList.add('recording');
+                // Change to stop icon
+                micBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:20px;height:20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M5.25 7.5A2.25 2.25 0 017.5 5.25h9a2.25 2.25 0 012.25 2.25v9a2.25 2.25 0 01-2.25 2.25h-9a2.25 2.25 0 01-2.25-2.25v-9z" /></svg>';
+                
+            } catch (error) {
+                console.error('Error accessing microphone:', error);
+                alert('Could not access microphone. Please check permissions.');
+            }
+        }
+    }
+    
+    async function transcribeAIAnalysisAudio(audioBlob) {
+        try {
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'recording.webm');
+            
+            const response = await fetch('/api/realtime/transcribe', {
+                method: 'POST',
+                body: audioBlob,
+                headers: {
+                    'Content-Type': 'audio/webm'
+                }
+            });
+            
+            if (!response.ok) throw new Error('Transcription failed');
+            
+            const data = await response.json();
+            const transcription = data.text || '';
+            
+            if (transcription.trim()) {
+                const input = document.getElementById('aiAnalysisInput');
+                input.value = transcription;
+                // Let user review and edit before sending
+            }
+            
+        } catch (error) {
+            console.error('Error transcribing audio:', error);
+            alert('Failed to transcribe audio. Please try typing instead.');
+        }
+    }
+
     // Boot
     initializeMode();
+    loadPedagogyPreferences(); // Load user preferences for pedagogy dashboard
     
     fetch('/api/video-metadata').then(r=>{ if(!r.ok) throw new Error('Cannot load metadata'); return r.json(); })
         .then(list=>{ metadataList=list; populateSelector(list); 
@@ -1387,6 +2621,496 @@
         });
     });
     
+    // ========== RECORDING FUNCTIONALITY ==========
+    
+    // Recording state variables
+    let mediaRecorder = null;
+    let audioStream = null;
+    let recordingChunks = [];
+    let chunkNumber = 0;
+    let recordingStartTime = null;
+    let maxDurationSeconds = 3600; // Default 1 hour
+    let timerInterval = null;
+    let recordingSessionId = null;
+    const CHUNK_INTERVAL = 300000; // 5 minutes in ms
+    let chunkTimer = null;
+    let accumulatedTranscript = [];
+    
+    // IndexedDB setup
+    const DB_NAME = 'LessonRecordings';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'chunks';
+    
+    function openDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
+            request.onerror = () => reject(request.error);
+            request.onsuccess = () => resolve(request.result);
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains(STORE_NAME)) {
+                    db.createObjectStore(STORE_NAME, { keyPath: 'key' });
+                }
+            };
+        });
+    }
+    
+    async function saveToIndexedDB(key, blob) {
+        try {
+            const db = await openDB();
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            await store.put({ key, blob, timestamp: Date.now() });
+            console.log('✅ Saved chunk to IndexedDB:', key);
+        } catch (error) {
+            console.error('❌ IndexedDB save failed:', error);
+        }
+    }
+    
+    async function clearSessionFromIndexedDB(sessionId) {
+        try {
+            const db = await openDB();
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            const request = store.getAllKeys();
+            request.onsuccess = () => {
+                const keys = request.result;
+                keys.forEach(key => {
+                    if (key.startsWith(sessionId)) {
+                        store.delete(key);
+                    }
+                });
+            };
+        } catch (error) {
+            console.error('❌ IndexedDB clear failed:', error);
+        }
+    }
+    
+    // Initialize recording view
+    function initializeRecordView() {
+        // Reset UI to initial state
+        const recordBtn = document.getElementById('recordButton');
+        recordBtn.classList.remove('recording-active');
+        recordBtn.style.background = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+        recordBtn.style.boxShadow = '0 8px 24px rgba(59, 130, 246, 0.3)';
+        document.getElementById('recordButtonText').textContent = 'RECORD';
+        document.getElementById('timerDisplay').style.opacity = '0';
+        document.getElementById('recordingStatus').style.opacity = '0';
+        document.getElementById('recordingWarnings').style.opacity = '0';
+        document.getElementById('processingIndicator').classList.add('hidden');
+        document.getElementById('recordingComplete').classList.add('hidden');
+        document.getElementById('recordDurationSelect').disabled = false;
+        document.getElementById('transcriptDisplay').classList.add('hidden');
+        
+        // Check for incomplete recordings on page load (recovery feature)
+        checkForIncompleteRecordings();
+    }
+    
+    async function checkForIncompleteRecordings() {
+        // Implementation for recovery - future enhancement
+        console.log('Checking for incomplete recordings...');
+    }
+    
+    // Start recording
+    async function startRecording() {
+        try {
+            // Get selected duration
+            maxDurationSeconds = parseInt(document.getElementById('recordDurationSelect').value);
+            
+            // Generate session ID
+            recordingSessionId = `lesson_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            chunkNumber = 0;
+            accumulatedTranscript = [];
+            
+            // Request microphone access
+            audioStream = await navigator.mediaDevices.getUserMedia({ 
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    sampleRate: 44100
+                } 
+            });
+            
+            // Determine best supported MIME type
+            const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+                ? 'audio/webm;codecs=opus' 
+                : MediaRecorder.isTypeSupported('audio/mp4')
+                    ? 'audio/mp4'
+                    : 'audio/webm';
+            
+            console.log('🎤 Using MIME type:', mimeType);
+            
+            // Initialize MediaRecorder
+            mediaRecorder = new MediaRecorder(audioStream, { 
+                mimeType,
+                audioBitsPerSecond: 128000
+            });
+            
+            recordingChunks = [];
+            
+            // Handle data available event (chunks)
+            mediaRecorder.ondataavailable = async (event) => {
+                if (event.data.size > 0) {
+                    recordingChunks.push(event.data);
+                    console.log('📦 Chunk received:', event.data.size, 'bytes');
+                }
+            };
+            
+            // Handle recording stop
+            mediaRecorder.onstop = async () => {
+                console.log('🛑 Recording stopped, processing final chunk...');
+                await processFinalChunk();
+            };
+            
+            // Start recording
+            mediaRecorder.start();
+            recordingStartTime = Date.now();
+            
+            // Update UI - button becomes red and shows STOP
+            const recordBtn = document.getElementById('recordButton');
+            recordBtn.classList.add('recording-active');
+            recordBtn.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+            recordBtn.style.boxShadow = '0 8px 32px rgba(239, 68, 68, 0.3)';
+            document.getElementById('recordButtonText').textContent = 'STOP';
+            document.getElementById('recordDurationSelect').disabled = true;
+            document.getElementById('timerDisplay').style.opacity = '1';
+            document.getElementById('recordingStatus').style.opacity = '1';
+            document.getElementById('recordingWarnings').style.opacity = '1';
+            
+            // Format max duration display
+            const hours = Math.floor(maxDurationSeconds / 3600);
+            const minutes = Math.floor((maxDurationSeconds % 3600) / 60);
+            const seconds = maxDurationSeconds % 60;
+            document.getElementById('maxDurationText').textContent = 
+                `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            
+            // Start timer
+            startTimer();
+            
+            // Set up chunk interval (save every 5 minutes)
+            chunkTimer = setInterval(() => {
+                saveCurrentChunk();
+            }, CHUNK_INTERVAL);
+            
+            // Auto-stop at max duration
+            setTimeout(() => {
+                if (mediaRecorder && mediaRecorder.state === 'recording') {
+                    stopRecording();
+                }
+            }, maxDurationSeconds * 1000);
+            
+        } catch (error) {
+            console.error('❌ Recording start failed:', error);
+            alert('Failed to start recording. Please check microphone permissions.');
+            resetRecordingUI();
+        }
+    }
+    
+    // Save current chunk
+    async function saveCurrentChunk() {
+        if (!mediaRecorder || mediaRecorder.state !== 'recording') return;
+        
+        console.log('💾 Saving chunk', chunkNumber);
+        
+        // Request data (triggers ondataavailable)
+        mediaRecorder.stop();
+        
+        // Process the chunk
+        await processChunk();
+        
+        // Restart recording for next chunk
+        recordingChunks = [];
+        mediaRecorder.start();
+    }
+    
+    // Process chunk (save and upload)
+    async function processChunk() {
+        if (recordingChunks.length === 0) return;
+        
+        const chunkBlob = new Blob(recordingChunks, { type: mediaRecorder.mimeType });
+        const currentChunkNum = chunkNumber++;
+        
+        // Save to IndexedDB
+        await saveToIndexedDB(`${recordingSessionId}_chunk_${currentChunkNum}`, chunkBlob);
+        
+        // Upload to server for transcription
+        uploadChunkForTranscription(chunkBlob, currentChunkNum);
+        
+        // Update status
+        document.getElementById('saveStatusText').textContent = `Saved ${currentChunkNum + 1} chunk(s)`;
+    }
+    
+    // Process final chunk when recording stops
+    async function processFinalChunk() {
+        if (recordingChunks.length === 0) {
+            showRecordingComplete();
+            return;
+        }
+        
+        const chunkBlob = new Blob(recordingChunks, { type: mediaRecorder.mimeType });
+        const currentChunkNum = chunkNumber++;
+        
+        console.log('📤 Processing final chunk:', currentChunkNum);
+        
+        // Save to IndexedDB
+        await saveToIndexedDB(`${recordingSessionId}_chunk_${currentChunkNum}`, chunkBlob);
+        
+        // Upload final chunk
+        await uploadChunkForTranscription(chunkBlob, currentChunkNum, true);
+        
+        // Show processing indicator
+        document.getElementById('processingIndicator').classList.remove('hidden');
+        
+        // Wait a moment for server processing, then show complete
+        setTimeout(() => {
+            showRecordingComplete();
+        }, 2000);
+    }
+    
+    // Upload chunk to server for transcription
+    async function uploadChunkForTranscription(blob, chunkNum, isFinal = false) {
+        try {
+            const formData = new FormData();
+            formData.append('audio', blob);
+            formData.append('sessionId', recordingSessionId);
+            formData.append('chunkNumber', chunkNum);
+            formData.append('isFinal', isFinal);
+            formData.append('mimeType', mediaRecorder.mimeType);
+            
+            console.log('📤 Uploading chunk', chunkNum, 'to server...');
+            
+            const response = await fetch('/api/recording/transcribe-chunk', {
+                method: 'POST',
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log('✅ Chunk', chunkNum, 'transcribed successfully');
+            
+            // Accumulate transcript
+            if (data.transcript) {
+                accumulatedTranscript.push({
+                    chunkNumber: chunkNum,
+                    transcript: data.transcript
+                });
+                document.getElementById('uploadStatusText').textContent = `Transcribed ${accumulatedTranscript.length} chunk(s)`;
+                
+                // Show transcript display if not already visible
+                const transcriptDisplay = document.getElementById('transcriptDisplay');
+                if (transcriptDisplay.classList.contains('hidden')) {
+                    transcriptDisplay.classList.remove('hidden');
+                }
+                
+                // Update transcript text
+                const fullTranscript = accumulatedTranscript
+                    .sort((a, b) => a.chunkNumber - b.chunkNumber)
+                    .map(t => t.transcript)
+                    .join(' ');
+                document.getElementById('transcriptText').textContent = fullTranscript;
+                
+                // Auto-scroll to bottom
+                document.getElementById('transcriptText').scrollTop = document.getElementById('transcriptText').scrollHeight;
+            }
+            
+        } catch (error) {
+            console.error('❌ Chunk upload failed:', error);
+            // Don't alert user - chunks are safely stored in IndexedDB
+            document.getElementById('uploadStatusText').textContent = 'Upload pending (will retry)';
+        }
+    }
+    
+    // Stop recording
+    async function stopRecording() {
+        console.log('🛑 Stopping recording...');
+        
+        // Stop timers
+        if (timerInterval) clearInterval(timerInterval);
+        if (chunkTimer) clearInterval(chunkTimer);
+        
+        // Stop MediaRecorder (this will trigger onstop event)
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+        }
+        
+        // Stop audio stream
+        if (audioStream) {
+            audioStream.getTracks().forEach(track => track.stop());
+        }
+    }
+    
+    // Start timer display
+    function startTimer() {
+        timerInterval = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+            updateTimerDisplay(elapsed);
+            
+            // Auto-stop if max duration reached
+            if (elapsed >= maxDurationSeconds) {
+                stopRecording();
+            }
+        }, 1000);
+    }
+    
+    // Update timer display
+    function updateTimerDisplay(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        
+        document.getElementById('timerText').textContent = 
+            hours > 0 
+                ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+                : `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+    
+    // Show recording complete
+    function showRecordingComplete() {
+        // Generate filename
+        const now = new Date();
+        const filename = `Lesson_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
+        
+        document.getElementById('recordingName').textContent = filename;
+        document.getElementById('processingIndicator').classList.add('hidden');
+        document.getElementById('recordingComplete').classList.remove('hidden');
+        document.getElementById('recordingStatus').style.opacity = '0';
+        document.getElementById('recordingWarnings').style.opacity = '0';
+        
+        // Reset button to blue "RECORD"
+        const recordBtn = document.getElementById('recordButton');
+        recordBtn.classList.remove('recording-active');
+        recordBtn.style.background = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+        recordBtn.style.boxShadow = '0 8px 24px rgba(59, 130, 246, 0.3)';
+        document.getElementById('recordButtonText').textContent = 'RECORD';
+        document.getElementById('recordDurationSelect').disabled = false;
+        document.getElementById('timerDisplay').style.opacity = '0';
+        
+        // Hide live transcript display
+        document.getElementById('transcriptDisplay').classList.add('hidden');
+        
+        // Show final transcript in complete state
+        const fullTranscript = accumulatedTranscript
+            .sort((a, b) => a.chunkNumber - b.chunkNumber)
+            .map(t => t.transcript)
+            .join(' ');
+        document.getElementById('finalTranscriptText').textContent = fullTranscript || 'No transcript available';
+        
+        // Store session ID for download
+        document.getElementById('downloadRecordingBtn').dataset.sessionId = recordingSessionId;
+    }
+    
+    // Reset recording UI
+    function resetRecordingUI() {
+        const recordBtn = document.getElementById('recordButton');
+        recordBtn.classList.remove('recording-active');
+        recordBtn.style.background = 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)';
+        recordBtn.style.boxShadow = '0 8px 24px rgba(59, 130, 246, 0.3)';
+        document.getElementById('recordDurationSelect').disabled = false;
+        document.getElementById('recordButtonText').textContent = 'RECORD';
+        document.getElementById('timerDisplay').style.opacity = '0';
+        document.getElementById('recordingStatus').style.opacity = '0';
+        document.getElementById('recordingWarnings').style.opacity = '0';
+        document.getElementById('transcriptDisplay').classList.add('hidden');
+        document.getElementById('processingIndicator').classList.add('hidden');
+        document.getElementById('recordingComplete').classList.add('hidden');
+        
+        // Clear transcript
+        accumulatedTranscript = [];
+        document.getElementById('transcriptText').textContent = 'Waiting for transcription...';
+        
+        if (timerInterval) clearInterval(timerInterval);
+        if (chunkTimer) clearInterval(chunkTimer);
+    }
+    
+    // Download recording
+    async function downloadRecording() {
+        const sessionId = document.getElementById('downloadRecordingBtn').dataset.sessionId;
+        if (!sessionId) return;
+        
+        try {
+            const response = await fetch(`/api/recording/download/${sessionId}`);
+            if (!response.ok) throw new Error('Download failed');
+            
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = document.getElementById('recordingName').textContent + '.mp3';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+        } catch (error) {
+            console.error('❌ Download failed:', error);
+            alert('Failed to download recording. Please try again.');
+        }
+    }
+    
+    // Function to show stop recording confirmation modal
+    function showStopRecordingModal() {
+        // Calculate and display current recording duration
+        if (recordingStartTime) {
+            const elapsedSeconds = Math.floor((Date.now() - recordingStartTime) / 1000);
+            const hours = Math.floor(elapsedSeconds / 3600);
+            const minutes = Math.floor((elapsedSeconds % 3600) / 60);
+            const seconds = elapsedSeconds % 60;
+            document.getElementById('modalRecordedDuration').textContent = 
+                `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+        
+        // Show modal
+        document.getElementById('stopRecordingModal').classList.remove('hidden');
+    }
+    
+    // Function to hide stop recording modal
+    function hideStopRecordingModal() {
+        document.getElementById('stopRecordingModal').classList.add('hidden');
+    }
+    
+    // Record button event listener
+    // Record button toggles between start and stop
+    document.getElementById('recordButton').addEventListener('click', () => {
+        if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+            startRecording();
+        } else {
+            showStopRecordingModal();
+        }
+    });
+    document.getElementById('downloadRecordingBtn').addEventListener('click', downloadRecording);
+    document.getElementById('newRecordingBtn').addEventListener('click', () => {
+        resetRecordingUI();
+        // Clear IndexedDB for this session
+        if (recordingSessionId) {
+            clearSessionFromIndexedDB(recordingSessionId);
+        }
+    });
+    
+    // Stop recording modal event listeners
+    document.getElementById('cancelStopRecording').addEventListener('click', hideStopRecordingModal);
+    document.getElementById('confirmStopRecording').addEventListener('click', () => {
+        hideStopRecordingModal();
+        stopRecording();
+    });
+    
+    // Close modal on backdrop click
+    document.getElementById('stopRecordingModal').addEventListener('click', (e) => {
+        if (e.target.id === 'stopRecordingModal') {
+            hideStopRecordingModal();
+        }
+    });
+    
+    // Prevent page unload during recording
+    window.addEventListener('beforeunload', (e) => {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            e.preventDefault();
+            e.returnValue = 'Recording in progress. Are you sure you want to leave?';
+        }
+    });
+    
+    // ========== END RECORDING FUNCTIONALITY ==========
+    
     // Onboarding chat event listeners
     document.getElementById('onboardingSendBtn').addEventListener('click', sendOnboardingMessage);
     document.getElementById('onboardingInput').addEventListener('keydown', function(e) {
@@ -1396,6 +3120,19 @@
         }
     });
     document.getElementById('onboardingMicBtn').addEventListener('click', toggleOnboardingMic);
+    
+    // Pedagogy settings modal listeners
+    document.getElementById('pedagogySettingsBtn').addEventListener('click', openPedagogySettings);
+    document.getElementById('closeSettingsModal').addEventListener('click', closePedagogySettings);
+    document.getElementById('cancelSettings').addEventListener('click', closePedagogySettings);
+    document.getElementById('saveSettings').addEventListener('click', saveAndClosePedagogySettings);
+    document.getElementById('pedagogySettingsModal').addEventListener('click', function(e) {
+        if (e.target.id === 'pedagogySettingsModal') closePedagogySettings();
+    });
+    
+    // Progress filter listener
+    document.getElementById('applyProgressFilters').addEventListener('click', () => loadProgressView(true));
+    
     document.getElementById('saveResearchBtn').addEventListener('click', saveResearchChanges);
 
     // Tab switching
@@ -1418,6 +3155,9 @@
             if(tab.dataset.tab==='flagged' && currentMeta){
                 loadFlaggedView(currentMeta.sessionId);
             }
+            if(tab.dataset.tab==='pedagogy' && currentMeta){
+                loadPedagogyView(currentMeta.sessionId);
+            }
         });
     });
 
@@ -1436,6 +3176,154 @@
         window.addEventListener('mousemove', onMove); window.addEventListener('touchmove', onMove, {passive:false});
         window.addEventListener('mouseup', onUp); window.addEventListener('touchend', onUp);
     })();
+    
+    // ========== PWA SERVICE WORKER & INSTALL ==========
+    
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js')
+                .then((registration) => {
+                    console.log('✅ Service Worker registered:', registration.scope);
+                    
+                    // Check for updates
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        console.log('🔄 Service Worker update found');
+                        
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // New service worker available
+                                showUpdateNotification();
+                            }
+                        });
+                    });
+                })
+                .catch((error) => {
+                    console.error('❌ Service Worker registration failed:', error);
+                });
+        });
+    }
+    
+    // PWA Install Prompt
+    let deferredPrompt = null;
+    const installButton = document.createElement('button');
+    installButton.id = 'installPWABtn';
+    installButton.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:6px;">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        Install App
+    `;
+    installButton.style.cssText = 'display:none;padding:8px 14px;background:#10b981;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.2s;align-items:center;';
+    installButton.onmouseover = () => installButton.style.background = '#059669';
+    installButton.onmouseout = () => installButton.style.background = '#10b981';
+    
+    // Add to topbar actions
+    const topbarActions = document.querySelector('.actions');
+    if (topbarActions) {
+        topbarActions.appendChild(installButton);
+    }
+    
+    // Capture install prompt
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        
+        // Show install button
+        installButton.style.display = 'flex';
+        console.log('📱 PWA install prompt available');
+    });
+    
+    // Handle install button click
+    installButton.addEventListener('click', async () => {
+        if (!deferredPrompt) return;
+        
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        
+        console.log(`📱 User ${outcome} the install prompt`);
+        
+        if (outcome === 'accepted') {
+            installButton.style.display = 'none';
+        }
+        
+        deferredPrompt = null;
+    });
+    
+    // Handle successful install
+    window.addEventListener('appinstalled', () => {
+        console.log('✅ PWA installed successfully');
+        installButton.style.display = 'none';
+        deferredPrompt = null;
+        
+        // Show success message
+        alert('Teach(er) installed successfully! You can now use it like a native app.');
+    });
+    
+    // Check if already installed
+    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+        console.log('✅ Running as installed PWA');
+        installButton.style.display = 'none';
+    }
+    
+    // Show update notification
+    function showUpdateNotification() {
+        const updateBanner = document.createElement('div');
+        updateBanner.style.cssText = 'position:fixed;top:80px;right:20px;background:#3b82f6;color:white;padding:16px 20px;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.2);z-index:9999;display:flex;align-items:center;gap:12px;animation:slideInRight 0.3s ease;';
+        updateBanner.innerHTML = `
+            <div style="flex:1;">
+                <div style="font-weight:600;margin-bottom:4px;">Update Available</div>
+                <div style="font-size:13px;opacity:0.9;">A new version of Teach(er) is ready</div>
+            </div>
+            <button id="updateNowBtn" style="padding:8px 16px;background:white;color:#3b82f6;border:none;border-radius:6px;font-weight:600;cursor:pointer;">
+                Update Now
+            </button>
+            <button id="dismissUpdateBtn" style="padding:8px;background:transparent;color:white;border:none;cursor:pointer;opacity:0.8;">✕</button>
+        `;
+        
+        document.body.appendChild(updateBanner);
+        
+        document.getElementById('updateNowBtn').addEventListener('click', () => {
+            navigator.serviceWorker.getRegistration().then((reg) => {
+                if (reg && reg.waiting) {
+                    reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    window.location.reload();
+                }
+            });
+        });
+        
+        document.getElementById('dismissUpdateBtn').addEventListener('click', () => {
+            updateBanner.remove();
+        });
+        
+        // Auto-dismiss after 10 seconds
+        setTimeout(() => {
+            if (updateBanner.parentElement) {
+                updateBanner.style.animation = 'slideOutRight 0.3s ease';
+                setTimeout(() => updateBanner.remove(), 300);
+            }
+        }, 10000);
+    }
+    
+    // Add animations
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideInRight {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOutRight {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(400px); opacity: 0; }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    // ========== END PWA ==========
+    
     </script>
 </body>
 </html>

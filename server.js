@@ -1,8 +1,21 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 require('dotenv').config();
+const { Groq } = require('groq-sdk');
+const { ElevenLabsClient } = require('@elevenlabs/elevenlabs-js');
+const multer = require('multer');
+const FormData = require('form-data');
+const axios = require('axios');
+const archiver = require('archiver');
 const app = express();
+
+// Initialize Groq client
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+// Initialize ElevenLabs client
+const elevenlabs = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY });
 
 // Supabase configuration (optional now). If not present, we read Phase 1 OUTPUT_LESSONS locally.
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -52,7 +65,7 @@ function toDisplayDateTime(isoLike) {
 
 async function getLessonBySessionId(sessionId) {
   if (!USE_SUPABASE) return getLocalLessonBySessionId(sessionId);
-  const response = await supabaseRequest(`/lessons?session_id=eq.${sessionId}&select=id,session_id,title,uploaded_at,transcript_content,transcript_file,analysis`);
+  const response = await supabaseRequest(`/lessons?session_id=eq.${sessionId}&select=id,session_id,title,uploaded_at,transcript_content,transcript_file,analysis,pedagogy_analysis`);
   const lessons = await response.json();
   return lessons.length > 0 ? lessons[0] : null;
 }
@@ -92,12 +105,30 @@ function getLocalLessonBySessionId(sessionId) {
     session_id: obj.sessionId,
     title: obj.title || 'Lesson',
     uploaded_at: obj.uploadedAt || null,
-    transcript_content: Array.isArray(obj.transcript) ? obj.transcript : []
+    transcript_content: Array.isArray(obj.transcript) ? obj.transcript : [],
+    pedagogy_analysis: obj.pedagogy_analysis || null
   };
 }
 
 const PORT = 3000;
 const PROMPTS_DIR = path.join(__dirname, 'PROMPTS');
+
+// PWA: Explicit MIME types for manifest and service worker
+app.get('/manifest.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/manifest+json');
+  res.sendFile(path.join(__dirname, 'manifest.json'));
+});
+
+app.get('/sw.js', (req, res) => {
+  res.setHeader('Content-Type', 'application/javascript');
+  res.setHeader('Service-Worker-Allowed', '/');
+  res.sendFile(path.join(__dirname, 'sw.js'));
+});
+
+app.get('/favicon.svg', (req, res) => {
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.sendFile(path.join(__dirname, 'favicon.svg'));
+});
 
 app.use(express.static(__dirname));
 app.use(express.json({ limit: '2mb' }));
@@ -200,43 +231,530 @@ app.get('/api/lesson/:sessionId', async (req, res) => {
   }
 });
 
+// Pedagogy analysis endpoint
+app.get('/api/pedagogy', async (req, res) => {
+  try {
+    const sessionId = req.query.sessionId;
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId required' });
+    }
+    
+    if (USE_SUPABASE) {
+      // Fetch from Supabase - include transcript_content and word_transcript
+      const response = await supabaseRequest(`/lessons?session_id=eq.${sessionId}&select=pedagogy_analysis,transcript_content,word_transcript`);
+      const lessons = await response.json();
+      if (lessons.length === 0) {
+        return res.status(404).json({ error: 'Lesson not found' });
+      }
+      return res.json({ 
+        pedagogy_analysis: lessons[0].pedagogy_analysis || null,
+        transcript: lessons[0].transcript_content || [],
+        wordTranscript: lessons[0].word_transcript || null
+      });
+    } else {
+      // Fetch from local file
+      const lesson = await getLocalLessonBySessionId(sessionId);
+      if (!lesson) {
+        return res.status(404).json({ error: 'Lesson not found' });
+      }
+      
+      // Load word transcript from TRANSCRIPTS folder
+      let wordTranscript = null;
+      try {
+        const wordTranscriptPath = path.join(__dirname, '../Phase_1_Extract_Transcript/TRANSCRIPTS', `${sessionId}_transcript.json`);
+        if (fs.existsSync(wordTranscriptPath)) {
+          wordTranscript = JSON.parse(fs.readFileSync(wordTranscriptPath, 'utf-8'));
+        }
+      } catch (e) {
+        console.error('Error loading word transcript:', e);
+      }
+      
+      return res.json({ 
+        pedagogy_analysis: lesson.pedagogy_analysis || null,
+        transcript: lesson.transcript || [],
+        wordTranscript: wordTranscript
+      });
+    }
+  } catch (e) {
+    console.error('Error fetching pedagogy analysis:', e);
+    res.status(500).json({ error: 'Could not fetch pedagogy analysis' });
+  }
+});
+
+// Pedagogy preferences endpoints
+app.get('/api/pedagogy/preferences', async (req, res) => {
+  try {
+    const email = req.query.email;
+    if (!email) {
+      return res.status(400).json({ error: 'Email required' });
+    }
+    
+    if (USE_SUPABASE) {
+      const response = await supabaseRequest(`/onboarding_sessions?select=pedagogy_preferences&email=eq.${encodeURIComponent(email)}&order=created_at.desc&limit=1`);
+      const data = await response.json();
+      
+      if (data && data.length > 0 && data[0].pedagogy_preferences) {
+        return res.json({ preferences: data[0].pedagogy_preferences });
+      }
+    }
+    
+    // Return null if not found, frontend will use defaults
+    res.json({ preferences: null });
+  } catch (e) {
+    console.error('Error fetching pedagogy preferences:', e);
+    res.status(500).json({ error: 'Could not fetch preferences' });
+  }
+});
+
+app.post('/api/pedagogy/preferences', async (req, res) => {
+  try {
+    const { email, preferences } = req.body;
+    if (!email || !preferences) {
+      return res.status(400).json({ error: 'Email and preferences required' });
+    }
+    
+    if (USE_SUPABASE) {
+      // Update the most recent onboarding session for this email
+      const getResponse = await supabaseRequest(`/onboarding_sessions?select=id&email=eq.${encodeURIComponent(email)}&order=created_at.desc&limit=1`);
+      const sessions = await getResponse.json();
+      
+      if (sessions && sessions.length > 0) {
+        const sessionId = sessions[0].id;
+        await supabaseRequest(`/onboarding_sessions?id=eq.${sessionId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pedagogy_preferences: preferences })
+        });
+        
+        return res.json({ success: true });
+      }
+    }
+    
+    res.json({ success: true, note: 'Saved locally only' });
+  } catch (e) {
+    console.error('Error saving pedagogy preferences:', e);
+    res.status(500).json({ error: 'Could not save preferences' });
+  }
+});
+
+// Progress tracking endpoint
+app.get('/api/progress', async (req, res) => {
+  try {
+    const { fromDate, toDate } = req.query;
+    let lessons = [];
+    
+    if (USE_SUPABASE) {
+      let query = '/lessons?select=session_id,title,uploaded_at,analysis,pedagogy_analysis,transcript_content&order=uploaded_at.desc';
+      
+      // Add date filters if provided
+      if (fromDate && toDate) {
+        // Supabase date filtering: gte (greater than or equal), lte (less than or equal)
+        query += `&uploaded_at=gte.${fromDate}T00:00:00&uploaded_at=lte.${toDate}T23:59:59`;
+      }
+      
+      const response = await supabaseRequest(query);
+      lessons = await response.json();
+    } else {
+      lessons = await getLocalLessons();
+      
+      // Apply date filtering for local files
+      if (fromDate && toDate) {
+        const from = new Date(fromDate);
+        const to = new Date(toDate);
+        to.setHours(23, 59, 59, 999); // Include entire end date
+        
+        lessons = lessons.filter(lesson => {
+          const uploadDate = new Date(lesson.uploadedAt || lesson.uploaded_at);
+          return uploadDate >= from && uploadDate <= to;
+        });
+      }
+    }
+    
+    // Extract metrics from each lesson
+    const lessonsWithMetrics = lessons.map(lesson => {
+      const pedagogy = lesson.pedagogy_analysis || {};
+      const waitTimes = pedagogy.wait_time_analysis || {};
+      const questionSummary = pedagogy.question_analysis?.summary || {};
+      const analysis = lesson.analysis || {};
+      const transcript = lesson.transcript_content || lesson.transcript || [];
+      
+      // Calculate teacher talk percentage from transcript
+      let teacherTime = 0;
+      let studentTime = 0;
+      transcript.forEach(seg => {
+        const duration = (seg.end || 0) - (seg.start || 0);
+        if (seg.role === 'TEACHER') teacherTime += duration;
+        else if (seg.role === 'STUDENT') studentTime += duration;
+      });
+      const totalTime = teacherTime + studentTime;
+      const teacherTalkPercent = totalTime > 0 ? Math.round((teacherTime / totalTime) * 100) : 0;
+      
+      return {
+        sessionId: lesson.session_id || lesson.sessionId,
+        title: lesson.title || 'Untitled',
+        uploadedAt: lesson.uploaded_at || lesson.uploadedAt,
+        teacherTalkPercent: teacherTalkPercent,
+        avgWaitTime: waitTimes.average || 0,
+        totalQuestions: questionSummary.total_questions_analyzed || 0,
+        feedback: analysis.summary || ''
+      };
+    });
+    
+    // Don't auto-generate report - user will request it separately
+    res.json({
+      lessons: lessonsWithMetrics
+    });
+  } catch (error) {
+    console.error('Error fetching progress:', error);
+    res.status(500).json({ error: 'Could not fetch progress data' });
+  }
+});
+
+// Generate AI Progress Report (on-demand)
+app.post('/api/progress/generate-report', async (req, res) => {
+  try {
+    const { lessons, fromDate, toDate } = req.body;
+    
+    if (!lessons || lessons.length === 0) {
+      return res.json({ report: 'No lessons available for analysis. Upload lessons to get started!' });
+    }
+    
+    console.log(`🤖 Generating AI progress report for ${lessons.length} lessons...`);
+    
+    // Use Claude to generate the progress report
+    const report = await generateProgressReportWithClaude(lessons, fromDate, toDate);
+    
+    res.json({ report });
+  } catch (error) {
+    console.error('Error generating progress report:', error);
+    res.status(500).json({ error: 'Failed to generate progress report' });
+  }
+});
+
+// Answer specific questions about teaching progress
+app.post('/api/progress/ask-question', async (req, res) => {
+  try {
+    const { question, lessons, fromDate, toDate, includeGoals } = req.body;
+    
+    if (!question || !lessons || lessons.length === 0) {
+      return res.json({ answer: 'No question or lessons provided.' });
+    }
+    
+    console.log(`💬 Answering question: "${question}" for ${lessons.length} lessons...`);
+    
+    // Fetch goals and research if requested
+    let goalsData = null;
+    if (includeGoals && USE_SUPABASE) {
+      try {
+        console.log('📚 Fetching teaching goals and research from Supabase...');
+        const goalsResponse = await supabaseRequest('/onboarding_sessions?select=goal_text,research_output,research_sources&order=created_at.desc&limit=1');
+        const sessions = await goalsResponse.json();
+        console.log('📊 Onboarding sessions found:', sessions.length);
+        
+        if (sessions && sessions.length > 0) {
+          const session = sessions[0];
+          
+          // Fetch actual markdown content from research_sources URLs
+          let researchContent = '';
+          if (session.research_sources && Array.isArray(session.research_sources)) {
+            console.log(`📄 Fetching ${session.research_sources.length} research markdown files...`);
+            
+            const markdownPromises = session.research_sources.map(async (source) => {
+              try {
+                const url = source.url || source;
+                const response = await fetch(url);
+                if (response.ok) {
+                  const text = await response.text();
+                  return `\n## ${source.title || 'Research Document'}\n\n${text}\n`;
+                }
+              } catch (err) {
+                console.log(`⚠️ Could not fetch research file: ${source.title || source}`);
+              }
+              return '';
+            });
+            
+            const markdownContents = await Promise.all(markdownPromises);
+            researchContent = markdownContents.filter(c => c).join('\n---\n');
+            console.log(`✅ Loaded ${markdownContents.filter(c => c).length} research documents`);
+          }
+          
+          goalsData = {
+            goals: session.goal_text || 'Not specified',
+            researchSummary: session.research_output || 'Not specified',
+            researchContent: researchContent || 'No research materials loaded'
+          };
+          
+          console.log('✅ Goals loaded:', session.goal_text || 'None');
+          console.log('✅ Research summary loaded:', session.research_output ? 'Yes' : 'No');
+          console.log('✅ Research documents loaded:', researchContent ? 'Yes' : 'No');
+        } else {
+          console.log('⚠️ No onboarding sessions found');
+        }
+      } catch (e) {
+        console.error('❌ Could not fetch goals:', e.message);
+      }
+    }
+    
+    // Use Groq to answer the specific question
+    const answer = await answerProgressQuestion(question, lessons, fromDate, toDate, goalsData);
+    
+    res.json({ answer });
+  } catch (error) {
+    console.error('Error answering question:', error);
+    res.status(500).json({ error: 'Failed to answer question' });
+  }
+});
+
+async function generateProgressReportWithClaude(lessons, fromDate = null, toDate = null) {
+  if (lessons.length === 0) return '';
+  
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error('❌ ANTHROPIC_API_KEY not set - cannot generate AI report');
+    return 'AI report generation requires API key configuration.';
+  }
+  
+  // Format date range
+  let dateRangeText = '';
+  if (fromDate && toDate) {
+    const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    dateRangeText = ` from ${formatDate(fromDate)} to ${formatDate(toDate)}`;
+  }
+  
+  // Prepare lesson data summary for Claude
+  const lessonsSummary = lessons.map((lesson, idx) => ({
+    number: idx + 1,
+    title: lesson.title,
+    date: new Date(lesson.uploadedAt).toLocaleDateString(),
+    teacherTalkPercent: lesson.teacherTalkPercent,
+    avgWaitTime: lesson.avgWaitTime,
+    totalQuestions: lesson.totalQuestions,
+    feedback: lesson.feedback ? lesson.feedback.substring(0, 200) : 'N/A'
+  }));
+  
+  const prompt = `You are an expert educational coach analyzing a teacher's progress over time. 
+
+Your task is to analyze the teaching metrics from ${lessons.length} lesson${lessons.length > 1 ? 's' : ''}${dateRangeText} and provide an encouraging, actionable progress report.
+
+Key metrics to analyze:
+- **Wait Time**: Time teacher pauses after asking questions (optimal: 3-5 seconds)
+- **Teacher Talk %**: Percentage of lesson time teacher speaks (balance needed: give students voice while providing instruction)
+- **Total Questions**: Number of questions asked (indicates engagement)
+
+Here's the lesson data:
+${JSON.stringify(lessonsSummary, null, 2)}
+
+Please provide:
+1. **Overall Progress Summary**: Brief opening about their teaching journey${lessons.length > 1 ? ', comparing first to most recent lesson' : ''}
+2. **Wait Time Analysis**: Comment on wait time trends and provide research-backed guidance
+3. **Student Voice**: Analyze teacher talk % and balance with student participation  
+4. **Engagement**: Comment on questioning patterns
+5. **Next Steps**: 1-2 specific, actionable recommendations
+
+Keep the tone:
+- Encouraging and supportive
+- Evidence-based (cite research where appropriate)
+- Specific to their data
+- Actionable and practical
+- Concise (250-350 words total)
+
+Format with **bold headers** for each section. Write in second person ("You..."). Do NOT use bullet points in the output - write in flowing paragraphs.`;
+
+  try {
+    const payload = {
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 1500,
+      temperature: 0.7,
+      system: 'You are an expert educational coach who provides encouraging, evidence-based feedback to help teachers improve their practice.',
+      messages: [
+        { role: 'user', content: prompt }
+      ]
+    };
+
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!resp.ok) {
+      throw new Error(`Anthropic API error: ${resp.status} ${resp.statusText}`);
+    }
+
+    const data = await resp.json();
+    const report = data.content?.[0]?.text || 'Unable to generate report.';
+    
+    console.log('✅ AI progress report generated successfully');
+    return report;
+    
+  } catch (error) {
+    console.error('❌ Error calling Claude API:', error);
+    // Fallback to basic report if Claude fails
+    return `Analysis of ${lessons.length} lesson${lessons.length > 1 ? 's' : ''}${dateRangeText}:\n\nAverage wait time: ${(lessons.reduce((sum, l) => sum + (l.avgWaitTime || 0), 0) / lessons.length).toFixed(1)}s\nAverage teacher talk: ${Math.round(lessons.reduce((sum, l) => sum + (l.teacherTalkPercent || 0), 0) / lessons.length)}%\nTotal questions asked: ${lessons.reduce((sum, l) => sum + (l.totalQuestions || 0), 0)}\n\n(AI analysis temporarily unavailable - showing basic metrics)`;
+  }
+}
+
+async function answerProgressQuestion(question, lessons, fromDate = null, toDate = null, goalsData = null) {
+  if (lessons.length === 0) return 'No lessons available for analysis.';
+  
+  if (!process.env.GROQ_API_KEY) {
+    console.error('❌ GROQ_API_KEY not set');
+    return 'AI analysis requires API key configuration.';
+  }
+  
+  // Format date range
+  let dateRangeText = '';
+  if (fromDate && toDate) {
+    const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    dateRangeText = ` from ${formatDate(fromDate)} to ${formatDate(toDate)}`;
+  }
+  
+  // Prepare lesson data summary
+  const lessonsSummary = lessons.map((lesson, idx) => ({
+    number: idx + 1,
+    title: lesson.title,
+    date: new Date(lesson.uploadedAt).toLocaleDateString(),
+    teacherTalkPercent: lesson.teacherTalkPercent,
+    avgWaitTime: lesson.avgWaitTime,
+    totalQuestions: lesson.totalQuestions,
+    feedback: lesson.feedback ? lesson.feedback.substring(0, 200) + '...' : null
+  }));
+  
+  // Build prompt with optional goals and teaching plan
+  let prompt = `You are an expert educational coach analyzing a teacher's progress${dateRangeText}.
+
+**Teacher's Question:** ${question}
+
+**Lesson Data (${lessons.length} lesson${lessons.length > 1 ? 's' : ''}):**
+${JSON.stringify(lessonsSummary, null, 2)}`;
+
+  // Add goals and research materials if provided
+  if (goalsData) {
+    prompt += `
+
+**Teacher's Stated Goals:**
+${goalsData.goals || 'Not specified'}
+
+**Research Summary (AI-generated during onboarding):**
+${goalsData.researchSummary || 'Not specified'}
+
+**Research-Backed Teaching Strategies (from selected research documents):**
+${goalsData.researchContent ? goalsData.researchContent.substring(0, 3000) : 'Not specified'}
+`;
+  }
+
+  prompt += `
+
+**Context About Metrics:**
+- **Wait Time**: Time teacher pauses after asking questions before accepting responses (optimal: 3-5 seconds according to research)
+- **Teacher Talk %**: Percentage of lesson time teacher speaks (balance needed: give students voice while providing instruction)
+- **Total Questions**: Number of questions asked (indicates engagement and formative assessment)
+
+Please provide a focused, helpful answer to the teacher's question based on their actual data${goalsData ? ', their stated goals, and the research-backed strategies from their selected materials' : ''}. Be:
+- **Specific**: Reference their actual numbers and trends${goalsData ? ' in relation to their stated goals' : ''}
+- **Evidence-based**: ${goalsData ? 'Cite specific research from the materials they selected during onboarding' : 'Cite research where relevant'}
+- **Personalized**: ${goalsData ? 'Connect your feedback directly to what THEY said they wanted to achieve and the research THEY chose to focus on' : 'Provide general best practices'}
+- **Actionable**: Provide concrete next steps that align with their research materials
+- **Encouraging**: Frame feedback positively while being honest
+- **Concise**: Keep response to 250-350 words
+
+Format with **bold** for key points. Write in second person ("You..."). Use a conversational, supportive tone.`;
+
+  try {
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert educational coach who provides specific, evidence-based, and encouraging feedback to help teachers improve their practice. You have access to mathematical tools when you need to calculate statistics or perform numerical analysis."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      model: "openai/gpt-oss-120b",
+      temperature: 0.7,
+      max_completion_tokens: 2000,
+      top_p: 1,
+      reasoning_effort: "medium"
+    });
+    
+    const answer = chatCompletion.choices[0]?.message?.content || 'Unable to generate answer.';
+    
+    console.log('✅ AI answer generated successfully (Groq OSS-120B)');
+    return answer;
+    
+  } catch (error) {
+    console.error('❌ Error calling Groq API:', error);
+    return `I'm having trouble analyzing your data right now. Here's what I can see from ${lessons.length} lesson${lessons.length > 1 ? 's' : ''}:\n\nAverage wait time: ${(lessons.reduce((sum, l) => sum + (l.avgWaitTime || 0), 0) / lessons.length).toFixed(1)}s\nAverage teacher talk: ${Math.round(lessons.reduce((sum, l) => sum + (l.teacherTalkPercent || 0), 0) / lessons.length)}%\nTotal questions: ${lessons.reduce((sum, l) => sum + (l.totalQuestions || 0), 0)}`;
+  }
+}
+
 // Simple raw-audio transcription endpoint for Groq Whisper  
 app.post('/api/realtime/transcribe', express.raw({ type: ['application/octet-stream', 'audio/webm', 'audio/wav'], limit: '25mb' }), async (req, res) => {
   try {
-    if (!process.env.GROQ_API_KEY) return res.status(400).json({ error: 'Missing GROQ_API_KEY' });
+    console.log('🎤 Groq Whisper request received');
+    console.log('   Content-Type:', req.headers['content-type']);
+    console.log('   Body length:', req.body ? req.body.length : 0);
+    
+    if (!process.env.GROQ_API_KEY) {
+      console.error('❌ Missing GROQ_API_KEY');
+      return res.status(400).json({ error: 'Missing GROQ_API_KEY' });
+    }
+    
+    // Verify API key is present
+    const keyPreview = process.env.GROQ_API_KEY.substring(0, 10) + '...';
+    console.log('   API Key:', keyPreview);
     
     const audioBuffer = req.body;
     
     // Check if we have valid audio data
     if (!audioBuffer || audioBuffer.length === 0) {
+      console.error('❌ No audio data received');
       return res.status(400).json({ error: 'No audio data received' });
     }
     
-    const formData = new FormData();
-    // Use webm format which is what the browser records in
-    const blob = new Blob([audioBuffer], { type: 'audio/webm' });
-    formData.append('file', blob, 'audio.webm');
-    formData.append('model', 'whisper-large-v3-turbo');
-    formData.append('response_format', 'json');
-
-    const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
-      },
-      body: formData
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Groq API error:', response.status, errorText);
-      return res.status(response.status).json({ error: 'Groq API error', details: errorText });
+    console.log('✅ Audio data valid, sending to Groq...');
+    
+    // Save audio to temp file for Groq SDK
+    const tempFilePath = path.join(os.tmpdir(), `groq_audio_${Date.now()}.webm`);
+    fs.writeFileSync(tempFilePath, audioBuffer);
+    
+    console.log('📡 Sending to Groq API via SDK...');
+    
+    try {
+      // Use Groq SDK for transcription
+      const transcription = await groq.audio.transcriptions.create({
+        file: fs.createReadStream(tempFilePath),
+        model: 'whisper-large-v3-turbo',
+        response_format: 'json'
+      });
+      
+      // Clean up temp file
+      fs.unlinkSync(tempFilePath);
+      
+      const transcriptionText = transcription.text || '';
+      console.log(`✅ Groq transcription (${transcriptionText.length} chars):`, transcriptionText.substring(0, 100));
+      
+      res.json({ text: transcriptionText });
+      
+    } catch (transcriptionError) {
+      // Clean up temp file on error
+      try {
+        if (fs.existsSync(tempFilePath)) {
+          fs.unlinkSync(tempFilePath);
+        }
+      } catch (cleanupError) {
+        console.warn('⚠️  Could not clean up temp file:', cleanupError.message);
+      }
+      throw transcriptionError;
     }
-
-    const result = await response.json();
-    res.json({ text: result.text });
+    
   } catch (error) {
-    console.error('Groq Whisper API error:', error);
+    console.error('❌ Groq Whisper API error:', error);
     res.status(500).json({ error: 'Failed to transcribe audio', details: String(error) });
   }
 });
@@ -722,7 +1240,7 @@ async function sendManusEmailNotification(webhookData) {
     }
     
     const emailPayload = {
-      to: 'kwen1510@hotmail.com',
+      to: process.env.TEACHER_EMAIL || 'your-email@example.com',
       subject: subject,
       htmlBody: htmlBody
     };
@@ -1118,7 +1636,7 @@ The sources file is essential for the teacher to verify and explore the research
           .join('\n\n');
         
         const sessionPayload = [{
-          user_email: 'kwen1510@hotmail.com',
+          user_email: process.env.TEACHER_EMAIL || 'user@example.com',
           goal_text: goalText,
           conversation_json: conversation,
           manus_task_id: manusResult.task_id,
@@ -1325,6 +1843,282 @@ app.get('/api/health', (req, res) => {
     ]
   });
 });
+
+// ========== RECORDING ENDPOINTS ==========
+
+// Setup multer for file uploads
+const RECORDINGS_DIR = path.join(__dirname, 'RECORDINGS');
+if (!fs.existsSync(RECORDINGS_DIR)) {
+  fs.mkdirSync(RECORDINGS_DIR, { recursive: true });
+}
+
+const upload = multer({ dest: path.join(RECORDINGS_DIR, 'temp') });
+
+// ElevenLabs API key
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
+
+// Store transcripts by session
+const sessionTranscripts = {};
+
+// Periodic cleanup job - delete sessions older than 7 days
+function cleanupOldRecordings() {
+  try {
+    if (!fs.existsSync(RECORDINGS_DIR)) return;
+    
+    const sessions = fs.readdirSync(RECORDINGS_DIR).filter(f => 
+      f.startsWith('lesson_') && fs.statSync(path.join(RECORDINGS_DIR, f)).isDirectory()
+    );
+    
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    let deletedCount = 0;
+    
+    sessions.forEach(session => {
+      const sessionPath = path.join(RECORDINGS_DIR, session);
+      const stat = fs.statSync(sessionPath);
+      
+      if (stat.mtimeMs < sevenDaysAgo) {
+        // Delete old session
+        fs.rmSync(sessionPath, { recursive: true, force: true });
+        deletedCount++;
+        console.log(`🗑️  Deleted old recording session: ${session}`);
+      }
+    });
+    
+    if (deletedCount > 0) {
+      console.log(`🧹 Cleanup complete: Deleted ${deletedCount} old session(s)`);
+    }
+  } catch (error) {
+    console.error('❌ Cleanup error:', error);
+  }
+}
+
+// Run cleanup every 24 hours
+setInterval(cleanupOldRecordings, 24 * 60 * 60 * 1000);
+// Run cleanup on startup
+setTimeout(cleanupOldRecordings, 5000);
+
+// POST /api/recording/transcribe-chunk
+// Receives audio chunk, transcribes via ElevenLabs, returns transcript
+app.post('/api/recording/transcribe-chunk', upload.single('audio'), async (req, res) => {
+  try {
+    const { sessionId, chunkNumber, isFinal, mimeType } = req.body;
+    const audioFile = req.file;
+    
+    if (!audioFile) {
+      return res.status(400).json({ error: 'No audio file uploaded' });
+    }
+    
+    if (!ELEVENLABS_API_KEY) {
+      console.log('⚠️ ELEVENLABS_API_KEY not set, skipping transcription');
+      return res.json({ 
+        success: true, 
+        transcript: null, 
+        message: 'Transcription skipped (no API key)' 
+      });
+    }
+    
+    console.log(`📥 Received chunk ${chunkNumber} for session ${sessionId} (${audioFile.size} bytes)`);
+    
+    // Create session directory
+    const sessionDir = path.join(RECORDINGS_DIR, sessionId);
+    if (!fs.existsSync(sessionDir)) {
+      fs.mkdirSync(sessionDir, { recursive: true });
+    }
+    
+    // Save chunk with proper extension
+    const extension = mimeType.includes('webm') ? 'webm' : mimeType.includes('mp4') ? 'mp4' : 'webm';
+    const chunkPath = path.join(sessionDir, `chunk_${chunkNumber}.${extension}`);
+    fs.renameSync(audioFile.path, chunkPath);
+    
+    // Transcribe with ElevenLabs (using axios - works better with multipart form-data)
+    try {
+      console.log(`🔊 Transcribing chunk ${chunkNumber} with ElevenLabs...`);
+      
+      // Create FormData with file stream
+      const formData = new FormData();
+      formData.append('file', fs.createReadStream(chunkPath), {
+        filename: `chunk_${chunkNumber}.${extension}`,
+        contentType: `audio/${extension}`
+      });
+      formData.append('model_id', 'scribe_v1');  // Using scribe_v1 model
+      
+      // Use axios with FormData (handles multipart correctly)
+      const response = await axios.post('https://api.elevenlabs.io/v1/speech-to-text', formData, {
+        headers: {
+          'xi-api-key': process.env.ELEVENLABS_API_KEY,
+          ...formData.getHeaders()
+        }
+      });
+      
+      console.log(`📡 ElevenLabs response status: ${response.status}`);
+      
+      const data = response.data;
+      const transcript = data.text || '';
+      console.log(`📥 ElevenLabs transcription for chunk ${chunkNumber}:`, JSON.stringify(data, null, 2));
+      console.log(`✅ Chunk ${chunkNumber} transcribed (${transcript.length} chars): ${transcript.substring(0, 100)}...`);
+      
+      // Keep audio chunk for download (don't delete yet)
+      // Chunks will be cleaned up by the periodic cleanup job or after download
+      console.log(`💾 Keeping chunk ${chunkNumber} audio file for download`);
+      
+      // Store transcript
+      if (!sessionTranscripts[sessionId]) {
+        sessionTranscripts[sessionId] = [];
+      }
+      sessionTranscripts[sessionId].push({
+        chunkNumber: parseInt(chunkNumber),
+        transcript: transcript
+      });
+      
+      // Sort by chunk number to ensure correct order
+      sessionTranscripts[sessionId].sort((a, b) => a.chunkNumber - b.chunkNumber);
+      
+      // If final chunk, save combined transcript and clean up temp directory
+      if (isFinal === 'true') {
+        const fullTranscript = sessionTranscripts[sessionId].map(t => t.transcript).join(' ');
+        fs.writeFileSync(
+          path.join(sessionDir, 'transcript.txt'),
+          fullTranscript
+        );
+        console.log(`💾 Final transcript saved for session ${sessionId}`);
+        
+        // Clean up temp directory
+        const tempDir = path.join(RECORDINGS_DIR, 'temp');
+        if (fs.existsSync(tempDir)) {
+          const tempFiles = fs.readdirSync(tempDir);
+          tempFiles.forEach(file => {
+            try {
+              fs.unlinkSync(path.join(tempDir, file));
+            } catch (err) {
+              console.warn(`⚠️  Could not delete temp file ${file}`);
+            }
+          });
+        }
+        
+        // Clean up session transcript from memory
+        delete sessionTranscripts[sessionId];
+        console.log(`🧹 Cleaned up session ${sessionId} from memory`);
+      }
+      
+      res.json({
+        success: true,
+        transcript: transcript,
+        chunkNumber: parseInt(chunkNumber)
+      });
+      
+    } catch (transcribeError) {
+      console.error('❌ Transcription error:', transcribeError);
+      // Keep the audio file for potential retry
+      console.log(`💾 Keeping chunk ${chunkNumber} audio file for retry`);
+      res.json({
+        success: false,
+        error: transcribeError.message,
+        transcript: null
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ Chunk processing error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/recording/download/:sessionId
+// Downloads the audio file (serves individual chunk or combined file)
+app.get('/api/recording/download/:sessionId', (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const sessionDir = path.join(RECORDINGS_DIR, sessionId);
+    
+    if (!fs.existsSync(sessionDir)) {
+      return res.status(404).json({ error: 'Recording not found' });
+    }
+    
+    // Find all chunks
+    const files = fs.readdirSync(sessionDir);
+    const chunks = files
+      .filter(f => f.startsWith('chunk_'))
+      .sort((a, b) => {
+        const numA = parseInt(a.match(/chunk_(\d+)/)[1]);
+        const numB = parseInt(b.match(/chunk_(\d+)/)[1]);
+        return numA - numB;
+      });
+    
+    if (chunks.length === 0) {
+      return res.status(404).json({ error: 'No audio chunks found' });
+    }
+    
+    console.log(`📥 Downloading ${chunks.length} chunk(s) for session: ${sessionId}`);
+    
+    // If only one chunk, serve it directly (most common case)
+    if (chunks.length === 1) {
+      const chunkPath = path.join(sessionDir, chunks[0]);
+      const ext = path.extname(chunks[0]);
+      const contentType = ext === '.webm' ? 'audio/webm' : 'audio/mpeg';
+      
+      res.setHeader('Content-Disposition', `attachment; filename="Lesson_${sessionId}${ext}"`);
+      res.setHeader('Content-Type', contentType);
+      
+      const fileStream = fs.createReadStream(chunkPath);
+      fileStream.pipe(res);
+      
+      fileStream.on('end', () => {
+        console.log(`✅ Download complete: ${chunks[0]}`);
+      });
+      
+      return;
+    }
+    
+    // For multiple chunks, create a simple ZIP file with all chunks
+    // This is more reliable than trying to merge WebM files
+    const archiver = require('archiver');
+    const archive = archiver('zip', { zlib: { level: 0 } }); // No compression for audio
+    
+    const zipFilename = `Lesson_${sessionId}_${chunks.length}chunks.zip`;
+    res.setHeader('Content-Disposition', `attachment; filename="${zipFilename}"`);
+    res.setHeader('Content-Type', 'application/zip');
+    
+    archive.pipe(res);
+    
+    // Add all chunks to the ZIP
+    chunks.forEach((chunkFile) => {
+      const chunkPath = path.join(sessionDir, chunkFile);
+      archive.file(chunkPath, { name: chunkFile });
+    });
+    
+    // Add transcript if available
+    const transcriptPath = path.join(sessionDir, 'transcript.txt');
+    if (fs.existsSync(transcriptPath)) {
+      archive.file(transcriptPath, { name: 'transcript.txt' });
+    }
+    
+    archive.finalize();
+    
+    archive.on('end', () => {
+      console.log(`✅ Download complete: ${chunks.length} chunks in ZIP`);
+    });
+    
+  } catch (error) {
+    console.error('❌ Download error:', error);
+    
+    // Fallback: serve first chunk only
+    const sessionDir = path.join(RECORDINGS_DIR, req.params.sessionId);
+    const files = fs.readdirSync(sessionDir);
+    const firstChunk = files.find(f => f.startsWith('chunk_'));
+    
+    if (firstChunk) {
+      const chunkPath = path.join(sessionDir, firstChunk);
+      const ext = path.extname(firstChunk);
+      res.setHeader('Content-Disposition', `attachment; filename="Lesson${ext}"`);
+      res.setHeader('Content-Type', ext === '.webm' ? 'audio/webm' : 'audio/mpeg');
+      fs.createReadStream(chunkPath).pipe(res);
+    } else {
+      res.status(500).json({ error: error.message });
+    }
+  }
+});
+
+// ========== END RECORDING ENDPOINTS ==========
 
 app.listen(PORT, () => {
   console.log(`Express server running: http://localhost:${PORT}`);
