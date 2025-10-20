@@ -270,9 +270,10 @@
                 <!-- Resources Section -->
                 <div id="resourcesSection" style="background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 16px;">
                     <h2 style="font-size: 16px; font-weight: 600; margin: 0 0 12px 0;">📎 Resources</h2>
-                    <div id="resourcesList" style="display: flex; flex-direction: column; gap: 8px;">
-                        <p style="color: var(--muted); font-size: 14px;">No resources available yet.</p>
+                    <div id="resourcesEmptyState" style="padding: 14px; background: var(--bg); border: 1px dashed var(--border); border-radius: 8px; color: var(--muted);">
+                        Resources will appear here when your research is complete.
                     </div>
+                    <div id="resourcesList" style="display: none; flex-direction: column; gap: 8px;"></div>
                 </div>
                     
                     <!-- Save Button -->
@@ -966,7 +967,12 @@
             // Immediately clear any stale resources in the UI
             try {
                 const resourcesList = document.getElementById('resourcesList');
-                if (resourcesList) resourcesList.innerHTML = '';
+                const resourcesEmpty = document.getElementById('resourcesEmptyState');
+                if (resourcesList) {
+                    resourcesList.innerHTML = '';
+                    resourcesList.style.display = 'none';
+                }
+                if (resourcesEmpty) resourcesEmpty.style.display = 'block';
             } catch (e) {}
             
             // Add styled confirmation message (no links in UI)
@@ -1213,10 +1219,17 @@
             
             // Clear resources list first to remove any stale items
             const resourcesList = document.getElementById('resourcesList');
-            if (resourcesList) resourcesList.innerHTML = '';
+            const resourcesEmpty = document.getElementById('resourcesEmptyState');
+            if (resourcesList) {
+                resourcesList.innerHTML = '';
+            }
             
+            const isResearching = (session.status === 'researching' || forceResearching);
+            if (resourcesEmpty) resourcesEmpty.style.display = isResearching ? 'block' : 'none';
+            if (resourcesList) resourcesList.style.display = isResearching ? 'none' : 'flex';
+
             // Display resources only for completed research to avoid showing stale data
-            if (!forceResearching && session.status === 'completed' && session.research_sources && session.research_sources.length > 0) {
+            if (!isResearching && session.status === 'completed' && session.research_sources && session.research_sources.length > 0) {
                 
                 session.research_sources.forEach((source, idx) => {
                     const resourceItem = document.createElement('div');
@@ -1554,25 +1567,32 @@
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let fullResponse = '';
+            let buffer = '';
 
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n');
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const data = line.slice(6);
-                        if (data === '[DONE]') continue;
-                        try {
-                            const parsed = JSON.parse(data);
-                            if (parsed.content) {
-                                fullResponse += parsed.content;
-                                renderMarkdownLite(thinkingBubble, fullResponse);
-                            } else if (parsed.error) {
-                                throw new Error(parsed.error);
-                            }
-                        } catch {}
+                buffer += decoder.decode(value, { stream: true });
+                let idx;
+                while ((idx = buffer.indexOf('\n')) !== -1) {
+                    const rawLine = buffer.slice(0, idx);
+                    buffer = buffer.slice(idx + 1);
+                    const line = rawLine.trim();
+                    if (!line || !line.startsWith('data:')) continue;
+                    const dataStr = line.replace(/^data:\s*/, '').trim();
+                    if (dataStr === '[DONE]') continue;
+                    // Some environments may send 'data: [DONE]\r' or similar
+                    if (dataStr.replace(/\r+$/, '') === '[DONE]') continue;
+                    try {
+                        const parsed = JSON.parse(dataStr);
+                        if (parsed.content) {
+                            fullResponse += parsed.content;
+                            renderMarkdownLite(thinkingBubble, fullResponse);
+                        } else if (parsed.error) {
+                            throw new Error(parsed.error);
+                        }
+                    } catch (e) {
+                        // Ignore non-JSON lines
                     }
                 }
             }
