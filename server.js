@@ -10,6 +10,10 @@ const FormData = require('form-data');
 const axios = require('axios');
 const archiver = require('archiver');
 const app = express();
+// OpenAI SDK (Responses API)
+let OpenAI;
+try { OpenAI = require('openai'); } catch {}
+const openai = OpenAI ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
 
 // Initialize Groq client
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -110,7 +114,19 @@ function getLocalLessonBySessionId(sessionId) {
   };
 }
 
-const PORT = 3000;
+function buildTextMessage(role, text) {
+  return {
+    role,
+    content: [
+      {
+        type: 'text',
+        text: typeof text === 'string' ? text : String(text ?? '')
+      }
+    ]
+  };
+}
+
+const PORT = process.env.PORT || 3000;
 const PROMPTS_DIR = path.join(__dirname, 'PROMPTS');
 
 // PWA: Explicit MIME types for manifest and service worker
@@ -131,7 +147,7 @@ app.get('/favicon.svg', (req, res) => {
 });
 
 app.use(express.static(__dirname));
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '10mb' }));
 
 // Serve prompts from new PROMPTS directory (fallback to VIDEO_METADATA for backward compat)
 app.get('/PROMPTS/:file', (req, res) => {
@@ -520,7 +536,7 @@ async function generateProgressReportWithClaude(lessons, fromDate = null, toDate
     dateRangeText = ` from ${formatDate(fromDate)} to ${formatDate(toDate)}`;
   }
   
-  // Prepare lesson data summary for Claude
+  // Prepare lesson data summary for OpenAI
   const lessonsSummary = lessons.map((lesson, idx) => ({
     number: idx + 1,
     title: lesson.title,
@@ -560,39 +576,42 @@ Keep the tone:
 Format with **bold headers** for each section. Write in second person ("You..."). Do NOT use bullet points in the output - write in flowing paragraphs.`;
 
   try {
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('❌ Missing OPENAI_API_KEY');
+      return 'AI analysis requires API key configuration.';
+    }
     const payload = {
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 1500,
-      temperature: 0.7,
-      system: 'You are an expert educational coach who provides encouraging, evidence-based feedback to help teachers improve their practice.',
-      messages: [
-        { role: 'user', content: prompt }
+      model: 'gpt-4.1',
+      max_output_tokens: 1500,
+      input: [
+        buildTextMessage('system', 'You are an expert educational coach who provides encouraging, evidence-based feedback to help teachers improve their practice.'),
+        buildTextMessage('user', prompt)
       ]
     };
 
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    const resp = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json'
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)
     });
 
     if (!resp.ok) {
-      throw new Error(`Anthropic API error: ${resp.status} ${resp.statusText}`);
+      const errorText = await resp.text();
+      throw new Error(`OpenAI API error: ${resp.status} ${errorText}`);
     }
 
     const data = await resp.json();
-    const report = data.content?.[0]?.text || 'Unable to generate report.';
+    const report = data.output_text || 'Unable to generate report.';
     
     console.log('✅ AI progress report generated successfully');
     return report;
     
   } catch (error) {
-    console.error('❌ Error calling Claude API:', error);
-    // Fallback to basic report if Claude fails
+    console.error('❌ Error calling OpenAI API:', error);
+    // Fallback to basic report if AI fails
     return `Analysis of ${lessons.length} lesson${lessons.length > 1 ? 's' : ''}${dateRangeText}:\n\nAverage wait time: ${(lessons.reduce((sum, l) => sum + (l.avgWaitTime || 0), 0) / lessons.length).toFixed(1)}s\nAverage teacher talk: ${Math.round(lessons.reduce((sum, l) => sum + (l.teacherTalkPercent || 0), 0) / lessons.length)}%\nTotal questions asked: ${lessons.reduce((sum, l) => sum + (l.totalQuestions || 0), 0)}\n\n(AI analysis temporarily unavailable - showing basic metrics)`;
   }
 }
@@ -759,112 +778,177 @@ app.post('/api/realtime/transcribe', express.raw({ type: ['application/octet-str
   }
 });
 
-// POST /api/analyze - send text to Claude Sonnet for analysis with a given prompt
+// POST /api/analyze - analysis via OpenAI SDK
 app.post('/api/analyze', async (req, res) => {
   try {
-    if (!process.env.ANTHROPIC_API_KEY) return res.status(400).json({ error: 'Missing ANTHROPIC_API_KEY' });
+    if (!process.env.OPENAI_API_KEY) return res.status(400).json({ error: 'Missing OPENAI_API_KEY' });
+    if (!openai) return res.status(500).json({ error: 'OpenAI SDK not installed' });
+    
     const { prompt, text } = req.body || {};
     if (!text) return res.status(400).json({ error: 'Missing text' });
+    console.log('\n📨 /api/analyze request');
+    console.log('   prompt provided:', !!prompt);
+    console.log('   text length:', typeof text === 'string' ? text.length : 0);
 
-    const payload = {
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 2000,
-      system: prompt || 'You are an expert pedagogy analyst. Analyze the lesson.',
-      messages: [
-        { role: 'user', content: text }
-      ]
-    };
+    // Resolve system prompt: prefer provided, else Phase 2 PROMPTS/analysis_prompt.txt, else default
+    let systemPrompt = (typeof prompt === 'string' && prompt.trim()) ? prompt : null;
+    if (!systemPrompt) {
+      try {
+        const p = path.join(__dirname, 'PROMPTS', 'analysis_prompt.txt');
+        if (fs.existsSync(p)) systemPrompt = fs.readFileSync(p, 'utf8');
+      } catch {}
+    }
+    if (!systemPrompt) systemPrompt = 'You are an expert pedagogy analyst. Analyze the lesson.';
 
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify(payload)
+    const input = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: text }
+    ];
+
+    const result = await openai.responses.create({
+      model: 'gpt-4.1',
+      max_output_tokens: 10000,
+      input
     });
-    const dataText = await resp.text();
-    try { return res.status(resp.status).json(JSON.parse(dataText)); }
-    catch { return res.status(resp.status).send(dataText); }
+    const output = result.output_text || '';
+    console.log('✅ /api/analyze success, output chars:', output.length);
+    return res.status(200).json({ text: output, raw: result });
   } catch (e) {
+    console.error('❌ /api/analyze error:', e);
     res.status(500).json({ error: 'Analysis failed', details: String(e) });
   }
 });
 
-// Streaming Claude endpoint (text/event-stream-like over fetch streaming)
+// Streaming analysis via OpenAI SDK
 app.post('/api/analyze/stream', async (req, res) => {
   try {
-    if (!process.env.ANTHROPIC_API_KEY) return res.status(400).json({ error: 'Missing ANTHROPIC_API_KEY' });
+    if (!process.env.OPENAI_API_KEY) return res.status(400).json({ error: 'Missing OPENAI_API_KEY' });
+    if (!openai) return res.status(500).json({ error: 'OpenAI SDK not installed' });
+
     const { prompt, text } = req.body || {};
     if (!text) return res.status(400).json({ error: 'Missing text' });
 
-    // Enable chunked response
-    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Transfer-Encoding', 'chunked');
+    // Stream headers (template)
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
 
-    const payload = {
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 2000,
-      stream: true,
-      system: prompt || 'You are an expert pedagogy analyst. Analyze the lesson.',
-      messages: [
-        { role: 'user', content: text }
-      ]
-    };
+    // Resolve system prompt
+    let systemPrompt = (typeof prompt === 'string' && prompt.trim()) ? prompt : null;
+    if (!systemPrompt) {
+      try {
+        const p = path.join(__dirname, 'PROMPTS', 'analysis_prompt.txt');
+        if (fs.existsSync(p)) systemPrompt = fs.readFileSync(p, 'utf8');
+      } catch {}
+    }
+    if (!systemPrompt) systemPrompt = 'You are an expert pedagogy analyst. Analyze the lesson.';
+    
+    console.log('System prompt:', systemPrompt);
 
-    const upstream = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify(payload)
+    const input = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: text }
+    ];
+
+    const stream = await openai.responses.stream({
+      model: 'gpt-4.1',
+      max_output_tokens: 10000,
+      input
     });
 
-    if (!upstream.body) {
-      const txt = await upstream.text();
-      res.status(upstream.status).end(txt);
-      return;
-    }
-
-    const reader = upstream.body.getReader();
-    const decoder = new TextDecoder();
-    let done = false;
-    let buffer = '';
-    
-    while (!done) {
-      const { value, done: d } = await reader.read();
-      done = d;
-      if (value) {
-        buffer += decoder.decode(value, { stream: !done });
-        
-        // Process complete lines
-        const lines = buffer.split('\n');
-        buffer = lines.pop(); // Keep incomplete line in buffer
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.type === 'content_block_delta' && data.delta && data.delta.type === 'text_delta') {
-                // Send only the text content
-                res.write(`data: ${JSON.stringify({ text: data.delta.text })}\n\n`);
-              }
-            } catch (e) {
-              // Skip malformed JSON
-            }
-          }
+    try {
+      for await (const event of stream) {
+        if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') {
+          res.write(`data: ${JSON.stringify({ content: event.delta })}\n\n`);
+        }
+        if (event.type === 'response.completed') {
+          res.write('data: [DONE]\n\n');
         }
       }
+    } finally {
+      res.end();
     }
-    
-    // Send end signal
-    res.write(`data: ${JSON.stringify({ end: true })}\n\n`);
+  } catch (error) {
+    console.error('Streaming analyze error:', error);
+    res.status(500).json({ error: 'Failed to stream analysis', details: String(error) });
+  }
+});
+
+// ========== OPENAI DEBUG ENDPOINTS ==========
+
+// Simple test call to verify OPENAI_API_KEY works
+app.get('/api/debug/openai-mini', async (req, res) => {
+  try {
+    if (!process.env.OPENAI_API_KEY) return res.status(400).json({ error: 'Missing OPENAI_API_KEY' });
+    if (!openai) return res.status(500).json({ error: 'OpenAI SDK not installed' });
+    const result = await openai.responses.create({
+      model: 'gpt-4.1-mini',
+      max_output_tokens: 64,
+      input: [ { role: 'user', content: 'Return exactly: OK' } ]
+    });
+    return res.status(200).json({ ok: true, output_text: result.output_text });
+  } catch (e) {
+    res.status(500).json({ error: String(e) });
+  }
+});
+
+// Streaming test (proxies OpenAI SSE and emits incremental text)
+app.get('/api/debug/openai-mini/stream', async (req, res) => {
+  try {
+    if (!process.env.OPENAI_API_KEY) return res.status(400).json({ error: 'Missing OPENAI_API_KEY' });
+    if (!openai) return res.status(500).json({ error: 'OpenAI SDK not installed' });
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    const stream = await openai.responses.stream({
+      model: 'gpt-4.1-mini',
+      max_output_tokens: 64,
+      input: [ { role: 'user', content: 'Stream the word "OK" once.' } ]
+    });
+    for await (const event of stream) {
+      if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') {
+        res.write(`data: ${JSON.stringify({ text: event.delta })}\n\n`);
+      }
+      if (event.type === 'response.completed') {
+        res.write('data: [DONE]\n\n');
+      }
+    }
     res.end();
   } catch (e) {
     try { res.write('Error: ' + String(e)); } catch {}
+    res.end();
+  }
+});
+
+// ========== ANALYZE DEBUG ENDPOINTS ==========
+// Simple non-streaming test (no OpenAI dependency)
+app.post('/api/analyze/test', (req, res) => {
+  try {
+    console.log('\n🧪 /api/analyze/test hit');
+    return res.status(200).json({ text: 'OK - analyze test endpoint reachable.' });
+  } catch (e) {
+    return res.status(500).json({ error: String(e) });
+  }
+});
+
+// Simple streaming test (emits 3 chunks then DONE)
+app.get('/api/analyze/stream/test', async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  if (typeof res.flushHeaders === 'function') res.flushHeaders();
+  const send = (obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
+  try {
+    send({ content: 'This ' });
+    await new Promise(r => setTimeout(r, 150));
+    send({ content: 'is a ' });
+    await new Promise(r => setTimeout(r, 150));
+    send({ content: 'test.' });
+    res.write('data: [DONE]\n\n');
+  } catch (e) {
+    send({ error: String(e) });
+    res.write('data: [DONE]\n\n');
+  } finally {
     res.end();
   }
 });
@@ -1245,7 +1329,7 @@ async function sendManusEmailNotification(webhookData) {
       htmlBody: htmlBody
     };
     
-    console.log('📧 Sending email notification...');
+    console.log('📧 Sending email notification to:', process.env.TEACHER_EMAIL);
     const response = await fetch(APPSCRIPT_EMAIL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1271,8 +1355,8 @@ async function sendManusEmailNotification(webhookData) {
 // Onboarding chat endpoint with conversation history
 app.post('/api/onboarding/chat', async (req, res) => {
   try {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return res.status(400).json({ error: 'Missing ANTHROPIC_API_KEY' });
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(400).json({ error: 'Missing OPENAI_API_KEY' });
     }
     
     const { conversation } = req.body;
@@ -1310,34 +1394,14 @@ Guidelines:
 
 Keep responses concise (2-3 sentences max).`;
     
-    // Build messages array for Claude
-    const messages = conversation.map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }));
-    
-    const payload = {
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 500,
-      system: systemPrompt,
-      messages: messages
-    };
-    
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Claude API error:', response.status, errorText);
-      return res.status(response.status).json({ error: 'Claude API error', details: errorText });
+    // Build input array and call OpenAI via SDK
+    if (!openai) {
+      return res.status(500).json({ error: 'OpenAI SDK not installed' });
     }
+    const input = [
+      { role: 'system', content: systemPrompt },
+      ...conversation.map(msg => ({ role: msg.role, content: msg.content }))
+    ];
     
     // Count user messages only
     const userMessageCount = conversation.filter(m => m.role === 'user').length;
@@ -1361,9 +1425,13 @@ Keep responses concise (2-3 sentences max).`;
       });
     }
     
-    // Otherwise, get Claude's response (first turn only)
-    const result = await response.json();
-    const assistantResponse = result.content[0].text;
+    // Otherwise, get OpenAI's response (first turn only)
+    const result = await openai.responses.create({
+      model: 'gpt-4.1-mini',
+      max_output_tokens: 500,
+      input
+    });
+    const assistantResponse = result.output_text || '';
     
     console.log('\n📤 Assistant Response:');
     console.log(`   ${assistantResponse}`);
@@ -1386,9 +1454,8 @@ app.post('/api/onboarding/chat/stream', async (req, res) => {
   try {
     const { conversation } = req.body;
     
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return res.status(400).json({ error: 'ANTHROPIC_API_KEY not configured' });
-    }
+    if (!process.env.OPENAI_API_KEY) return res.status(400).json({ error: 'OPENAI_API_KEY not configured' });
+    if (!openai) return res.status(500).json({ error: 'OpenAI SDK not installed' });
     
     console.log('\n========================================');
     console.log('📨 ONBOARDING CHAT REQUEST (Streaming)');
@@ -1433,7 +1500,7 @@ app.post('/api/onboarding/chat/stream', async (req, res) => {
       return;
     }
     
-    // Otherwise, stream Claude's response (first turn only)
+    // Otherwise, stream OpenAI's response via SDK
     const systemPrompt = `You are a helpful teaching assistant helping teachers set up their lesson analysis system.
 
 Your role is to:
@@ -1447,76 +1514,34 @@ This is a 2-turn conversation:
 
 Be warm, encouraging, and concise.`;
     
-    const payload = {
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 500,
-      temperature: 0.7,
-      system: systemPrompt,
-      messages: conversation,
-      stream: true
-    };
-    
-    console.log('\n🤖 Calling Claude API with streaming...');
-    
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Claude API error:', response.status, errorText);
-      return res.status(response.status).json({ error: 'Claude API error', details: errorText });
+    if (!openai) {
+      return res.status(500).json({ error: 'OpenAI SDK not installed' });
     }
-    
-    // Set up SSE headers
+    const input = [
+      { role: 'system', content: systemPrompt },
+      ...conversation
+    ];
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
-    
-    // Stream the response
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      
-      const chunk = decoder.decode(value);
-      const lines = chunk.split('\n');
-      
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
-          
-          try {
-            const parsed = JSON.parse(data);
-            
-            // Handle different event types
-            if (parsed.type === 'content_block_delta') {
-              const text = parsed.delta?.text;
-              if (text) {
-                res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
-              }
-            } else if (parsed.type === 'message_stop') {
-              res.write('data: [DONE]\n\n');
-            }
-          } catch (e) {
-            // Skip invalid JSON
-          }
+    console.log('\n🤖 Calling OpenAI SDK (stream)...');
+    const stream = await openai.responses.stream({
+      model: 'gpt-4.1-mini',
+      max_output_tokens: 500,
+      input
+    });
+    try {
+      for await (const event of stream) {
+        if (event.type === 'response.output_text.delta' && typeof event.delta === 'string') {
+          res.write(`data: ${JSON.stringify({ content: event.delta })}\n\n`);
+        }
+        if (event.type === 'response.completed') {
+          res.write('data: [DONE]\n\n');
         }
       }
+    } finally {
+      res.end();
     }
-    
-    console.log('✅ Streaming complete');
-    console.log('========================================\n');
-    
-    res.end();
     
   } catch (error) {
     console.error('Onboarding streaming chat error:', error);
@@ -1619,6 +1644,7 @@ The sources file is essential for the teacher to verify and explore the research
     console.log('Share URL:', manusResult.share_url);
     
     // Save to Supabase
+    let savedSessionRow = null;
     if (USE_SUPABASE) {
       try {
         console.log('💾 Saving onboarding session to Supabase...');
@@ -1655,7 +1681,8 @@ The sources file is essential for the teacher to verify and explore the research
         }
         
         const savedSession = await supabaseResponse.json();
-        console.log('✅ Session saved to Supabase:', savedSession[0]?.id);
+        savedSessionRow = (savedSession && savedSession[0]) ? savedSession[0] : null;
+        console.log('✅ Session saved to Supabase:', savedSessionRow?.id);
       } catch (error) {
         console.error('⚠️ Failed to save to Supabase:', error);
         // Don't fail the request, just log the error
@@ -1671,7 +1698,8 @@ The sources file is essential for the teacher to verify and explore the research
       manusTaskId: manusResult.task_id,
       manusTaskUrl: manusResult.task_url,
       manusShareUrl: manusResult.share_url,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      savedSession: savedSessionRow
     });
     
   } catch (error) {
@@ -1750,7 +1778,7 @@ app.get('/api/onboarding/session/:email', async (req, res) => {
     
     // Get the most recent session for this user
     const response = await supabaseRequest(
-      `/onboarding_sessions?user_email=eq.${encodeURIComponent(email)}&order=created_at.desc&limit=1`
+      `/onboarding_sessions?user_email=eq.${encodeURIComponent(email)}&order=created_at.desc&order=id.desc&limit=1`
     );
     
     if (!response.ok) {

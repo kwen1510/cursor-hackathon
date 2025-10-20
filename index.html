@@ -198,6 +198,12 @@
             <label for="videoSelect" class="meta">Lesson</label>
             <select id="videoSelect" class="select"></select>
         </div>
+        <div class="actions hidden" id="recordActions">
+            <label for="recordingsDropdownTop" class="meta">Recordings</label>
+            <select id="recordingsDropdownTop" class="select" title="Local recordings" style="max-width: 260px;"></select>
+            <button id="loadRecordingTopBtn" style="padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: #fff; font-size: 12px; font-weight: 600; cursor: pointer;">Load</button>
+            <audio id="topPlaybackAudio" controls style="display:none; width: 220px;"></audio>
+        </div>
     </div>
     <div class="main" id="mainContent">
         <!-- Onboarding Mode View -->
@@ -410,6 +416,18 @@
                 <div id="recordingComplete" class="hidden" style="margin-top: 16px; padding: 20px; background: white; border: 1px solid var(--border); border-radius: 10px;">
                     <div style="font-size: 18px; font-weight: 700; margin-bottom: 10px; color: #10b981;">✓ Recording Complete!</div>
                     <div style="font-size: 13px; color: var(--muted); margin-bottom: 16px;" id="recordingName">Lesson_20251019_143012</div>
+                    
+                    <!-- Local save status and playback -->
+                    <div id="localSaveContainer" style="margin-bottom: 16px; padding: 14px; background: #f9fafb; border-radius: 8px; text-align: left;">
+                        <div id="localSaveStatus" style="font-size: 13px; color: #4b5563; margin-bottom: 8px;">Saving a copy to your device…</div>
+                        <audio id="localPlaybackAudio" controls style="width:100%; display:none;"></audio>
+                    </div>
+
+                    <!-- Saved recordings loader -->
+                    <div id="recordingsLoader" style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+                        <label for="recordingsDropdown" style="font-size: 13px; color: #374151;">Load a previous recording:</label>
+                        <select id="recordingsDropdown" style="flex: 1; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: white; font-size: 13px;"></select>
+                    </div>
                     
                     <!-- Final Transcript in Complete State -->
                     <div id="finalTranscriptBox" style="margin-bottom: 16px; padding: 14px; background: #f9fafb; border-radius: 8px; text-align: left; max-height: 300px; overflow-y: auto;">
@@ -627,6 +645,7 @@
         const progressView = document.getElementById('progressView');
         const recordView = document.getElementById('recordView');
         const lessonSelector = document.getElementById('lessonSelector');
+        const recordActions = document.getElementById('recordActions');
         
         if (mode === 'onboarding') {
             // Show onboarding, hide others
@@ -637,6 +656,7 @@
             divider.classList.add('hidden');
             rightPanel.classList.add('hidden');
             lessonSelector.classList.add('hidden');
+            if (recordActions) recordActions.classList.add('hidden');
             // Initialize onboarding chat
             initializeOnboardingChat();
         } else if (mode === 'progress') {
@@ -648,6 +668,7 @@
             divider.classList.add('hidden');
             rightPanel.classList.add('hidden');
             lessonSelector.classList.add('hidden');
+            if (recordActions) recordActions.classList.add('hidden');
             // Load progress data
             loadProgressView();
         } else if (mode === 'record') {
@@ -659,6 +680,7 @@
             divider.classList.add('hidden');
             rightPanel.classList.add('hidden');
             lessonSelector.classList.add('hidden');
+            if (recordActions) recordActions.classList.remove('hidden');
             // Initialize recording view
             initializeRecordView();
         } else {
@@ -670,6 +692,7 @@
             divider.classList.remove('hidden');
             rightPanel.classList.remove('hidden');
             lessonSelector.classList.remove('hidden');
+            if (recordActions) recordActions.classList.add('hidden');
         }
     }
     
@@ -933,6 +956,18 @@
             console.log('✅ Manus research triggered:', data);
             console.log('📊 Task URL:', data.manusTaskUrl);
             console.log('🔗 Share URL:', data.manusShareUrl);
+            // Prefer Supabase session status over local flag; fallback to local only if save not returned
+            if (data.savedSession && data.savedSession.id) {
+                window.currentSessionId = data.savedSession.id;
+            } else {
+                try { localStorage.setItem('onboarding_research_status', 'researching'); } catch (e) {}
+            }
+
+            // Immediately clear any stale resources in the UI
+            try {
+                const resourcesList = document.getElementById('resourcesList');
+                if (resourcesList) resourcesList.innerHTML = '';
+            } catch (e) {}
             
             // Add styled confirmation message (no links in UI)
             const messagesContainer = document.getElementById('onboardingMessages');
@@ -1023,14 +1058,15 @@
             const response = await fetch('/api/onboarding/session/kwen1510@hotmail.com');
             if (response.ok) {
                 const session = await response.json();
+                const localStatus = (function(){ try { return localStorage.getItem('onboarding_research_status'); } catch(e) { return null; } })();
                 
-                if (session && (session.status === 'completed' || session.status === 'researching')) {
+                if (session && (session.status === 'completed' || session.status === 'researching' || localStatus === 'researching')) {
                     // Load the research panel
                     console.log('✅ Found existing session, loading research panel...');
                     loadResearchPanel();
                     
                     // Disable chat and show status
-                    disableChatWithStatus(session.status === 'completed' ? 'completed' : 'researching');
+                    disableChatWithStatus(localStatus === 'researching' ? 'researching' : (session.status === 'completed' ? 'completed' : 'researching'));
                     return;
                 }
             }
@@ -1160,7 +1196,12 @@
             document.getElementById('goalTextArea').value = session.goal_text || '';
             
             // Format and display research output
-            const researchOutput = session.research_output || 'Research in progress... You\'ll receive an email when complete.';
+            // When a new research task is in progress, do NOT show any previous
+            // research_output. Always show an in-progress placeholder instead.
+            const forceResearching = (function(){ try { return localStorage.getItem('onboarding_research_status') === 'researching'; } catch(e) { return false; } })();
+            const researchOutput = (session.status === 'researching' || forceResearching)
+                ? 'Research in progress... You\'ll receive an email when complete.'
+                : (session.research_output || 'No research results yet.');
             document.getElementById('researchOutputArea').innerHTML = formatResearchOutput(researchOutput);
             
             // Format date (DD/MM/YYYY)
@@ -1170,10 +1211,12 @@
                 document.getElementById('researchCreatedDate').textContent = `Created: ${formattedDate}`;
             }
             
-            // Display resources if available
-            if (session.research_sources && session.research_sources.length > 0) {
-                const resourcesList = document.getElementById('resourcesList');
-                resourcesList.innerHTML = '';
+            // Clear resources list first to remove any stale items
+            const resourcesList = document.getElementById('resourcesList');
+            if (resourcesList) resourcesList.innerHTML = '';
+            
+            // Display resources only for completed research to avoid showing stale data
+            if (!forceResearching && session.status === 'completed' && session.research_sources && session.research_sources.length > 0) {
                 
                 session.research_sources.forEach((source, idx) => {
                     const resourceItem = document.createElement('div');
@@ -1247,6 +1290,31 @@
                 });
             }
             
+            // Clear local override once backend reports completion
+            if (session.status === 'completed') { try { localStorage.removeItem('onboarding_research_status'); } catch(e) {} }
+
+            // Start/stop polling until completion
+            if (session.status === 'researching' || forceResearching) {
+                if (!window.__researchPoller) {
+                    window.__researchPoller = setInterval(async () => {
+                        try {
+                            const r = await fetch('/api/onboarding/session/kwen1510@hotmail.com');
+                            if (r.ok) {
+                                const s = await r.json();
+                                if (s && s.status === 'completed') {
+                                    clearInterval(window.__researchPoller);
+                                    window.__researchPoller = null;
+                                    try { localStorage.removeItem('onboarding_research_status'); } catch(e) {}
+                                    loadResearchPanel();
+                                }
+                            }
+                        } catch(e) { /* ignore transient errors */ }
+                    }, 15000);
+                }
+            } else if (window.__researchPoller) {
+                clearInterval(window.__researchPoller);
+                window.__researchPoller = null;
+            }
             console.log('✅ Research panel loaded');
             
         } catch (error) {
@@ -1433,8 +1501,9 @@
 
     async function getPromptTemplate(){ 
         try{ 
-            // Prefer PROMPTS directory; fallback to legacy path
-            let r = await fetch('/PROMPTS/assistant_prompt.txt');
+            // Prefer Phase 2 PROMPTS: analysis_prompt first, then assistant_prompt; fallback to legacy path
+            let r = await fetch('/PROMPTS/analysis_prompt.txt');
+            if (!r.ok) r = await fetch('/PROMPTS/assistant_prompt.txt');
             if (!r.ok) r = await fetch('/VIDEO_METADATA/assistant_prompt.txt');
             return await r.text(); 
         } catch(e){ 
@@ -1447,76 +1516,83 @@
     let chatMediaRecorder=null; let chunks=[]; let recording=false;
     async function toggleMic(){ const btn=document.getElementById('micBtn'); if(!recording){ try{ const stream=await navigator.mediaDevices.getUserMedia({audio:true}); chatMediaRecorder=new MediaRecorder(stream,{mimeType:'audio/webm'}); chunks=[]; chatMediaRecorder.ondataavailable=e=>{ if(e.data && e.data.size>0) chunks.push(e.data); }; chatMediaRecorder.onstop=async ()=>{ const blob=new Blob(chunks,{type:'audio/webm'}); const resp=await fetch('/api/realtime/transcribe',{method:'POST', headers:{'content-type':'audio/webm'}, body: blob}); const textBody=await resp.text(); let data; try{ data=JSON.parse(textBody);}catch{ data={ text: textBody }; } const text=data.text || data.transcript || textBody; document.getElementById('chatInput').value = text; }; chatMediaRecorder.start(); recording=true; btn.classList.remove('bg-sky-500'); btn.classList.add('bg-red-500','ring-2','ring-red-400'); } catch(e){ console.error('Mic error:', e); } } else { if(chatMediaRecorder && chatMediaRecorder.state!=='inactive') chatMediaRecorder.stop(); recording=false; btn.classList.remove('bg-red-500','ring-2','ring-red-400'); btn.classList.add('bg-sky-500'); } }
 
-    // Streaming Claude request
-    async function sendPrompt(){ const input=document.getElementById('chatInput'); const userText=input.value.trim(); if(!userText) return; addMsg('user', userText); input.value=''; const basePrompt=await getPromptTemplate(); const lesson=transcriptAsText(); const payload={ prompt: basePrompt, text: 'User request: '+userText+'\n\nFull lesson transcript (normalized to TEACHER/STUDENT):\n'+lesson };
-        const assistantBubble = addMsg('assistant','');
-        
-        // Show thinking animation
-        let thinkingDots = 0;
+    // Analysis assistant streaming (adapted from onboarding)
+    async function sendPrompt(){
+        const input = document.getElementById('chatInput');
+        const userText = input.value.trim();
+        if (!userText) return;
+
+        addMsg('user', userText);
+        input.value = '';
+
+        const basePrompt = await getPromptTemplate();
+        const lesson = transcriptAsText();
+        const payload = {
+            prompt: basePrompt,
+            text: 'User request: ' + userText + '\n\nFull lesson transcript (normalized to TEACHER/STUDENT):\n' + lesson
+        };
+
+        const thinkingBubble = addMsg('assistant', 'Thinking.');
+        let thinkingDots = 1;
         const thinkingInterval = setInterval(() => {
-            thinkingDots = (thinkingDots + 1) % 4;
-            const dots = '.'.repeat(thinkingDots);
-            assistantBubble.textContent = 'Thinking' + dots;
-            document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+            thinkingDots = (thinkingDots % 3) + 1;
+            thinkingBubble.textContent = 'Thinking' + '.'.repeat(thinkingDots);
         }, 500);
-        
+
         try {
-            const resp = await fetch('/api/analyze/stream', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
-            const reader = resp.body.getReader(); 
-            const decoder = new TextDecoder(); 
-            let done = false; 
-            let firstToken = true; 
-            let buffer = '';
-            
-            while (!done) { 
-                const {value, done: d} = await reader.read(); 
-                done = d; 
-                if (value) { 
-                    if (firstToken) { 
-                        clearInterval(thinkingInterval); 
-                        assistantBubble.textContent = ''; 
-                        firstToken = false; 
-                    } 
-                    
-                    // Decode the chunk and add to buffer
-                    buffer += decoder.decode(value, { stream: !done });
-                    
-                    // Process complete lines
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop(); // Keep incomplete line in buffer
-                    
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            try {
-                                const data = JSON.parse(line.slice(6));
-                                if (data.text) {
-                                    // Append and render markdown progressively
-                                    const current = (assistantBubble.getAttribute('data-raw') || '') + data.text;
-                                    assistantBubble.setAttribute('data-raw', current);
-                                    renderMarkdownLite(assistantBubble, current);
-                                    document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
-                                } else if (data.end) {
-                                    // Stream ended
-                                    break;
-                                }
-                            } catch (e) {
-                                // If not JSON, treat as plain text
-                                const current = (assistantBubble.getAttribute('data-raw') || '') + line;
-                                assistantBubble.setAttribute('data-raw', current);
-                                renderMarkdownLite(assistantBubble, current);
-                                document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
-                            }
-                        }
-                    }
-                } 
-            }
-        } catch (e) {
+            const response = await fetch('/api/analyze/stream', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok || !response.body) throw new Error('Failed to get response');
+
             clearInterval(thinkingInterval);
-            assistantBubble.textContent = 'Error: '+String(e)+". Falling back...";
-            const r = await fetch('/api/analyze', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
-            const t = await r.text(); 
-            assistantBubble.setAttribute('data-raw', t);
-            renderMarkdownLite(assistantBubble, t);
+            thinkingBubble.textContent = '';
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let fullResponse = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n');
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6);
+                        if (data === '[DONE]') continue;
+                        try {
+                            const parsed = JSON.parse(data);
+                            if (parsed.content) {
+                                fullResponse += parsed.content;
+                                renderMarkdownLite(thinkingBubble, fullResponse);
+                            } else if (parsed.error) {
+                                throw new Error(parsed.error);
+                            }
+                        } catch {}
+                    }
+                }
+            }
+
+            if (!fullResponse) {
+                const backup = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const backupData = await backup.json();
+                if (backup.ok && backupData.text) {
+                    renderMarkdownLite(thinkingBubble, backupData.text);
+                } else {
+                    thinkingBubble.textContent = backupData.error || 'No response received.';
+                }
+            }
+        } catch (err) {
+            clearInterval(thinkingInterval);
+            thinkingBubble.textContent = `Issue: ${String(err)}`;
         }
     }
 
@@ -2697,10 +2773,17 @@
         document.getElementById('timerDisplay').style.opacity = '0';
         document.getElementById('recordingStatus').style.opacity = '0';
         document.getElementById('recordingWarnings').style.opacity = '0';
+        // Hide non-active blocks to avoid vertical gaps when not recording
+        document.getElementById('timerDisplay').classList.add('hidden');
+        document.getElementById('recordingStatus').classList.add('hidden');
+        document.getElementById('recordingWarnings').classList.add('hidden');
         document.getElementById('processingIndicator').classList.add('hidden');
         document.getElementById('recordingComplete').classList.add('hidden');
         document.getElementById('recordDurationSelect').disabled = false;
         document.getElementById('transcriptDisplay').classList.add('hidden');
+        
+        // Refresh local recordings dropdown when entering the view
+        refreshRecordingsDropdown().catch(() => {});
         
         // Check for incomplete recordings on page load (recovery feature)
         checkForIncompleteRecordings();
@@ -2773,6 +2856,10 @@
             recordBtn.style.boxShadow = '0 8px 32px rgba(239, 68, 68, 0.3)';
             document.getElementById('recordButtonText').textContent = 'STOP';
             document.getElementById('recordDurationSelect').disabled = true;
+            // Show active blocks and restore display to remove gaps
+            document.getElementById('timerDisplay').classList.remove('hidden');
+            document.getElementById('recordingStatus').classList.remove('hidden');
+            document.getElementById('recordingWarnings').classList.remove('hidden');
             document.getElementById('timerDisplay').style.opacity = '1';
             document.getElementById('recordingStatus').style.opacity = '1';
             document.getElementById('recordingWarnings').style.opacity = '1';
@@ -2969,15 +3056,18 @@
     
     // Show recording complete
     function showRecordingComplete() {
-        // Generate filename
+        // Generate base file-safe name for server download button
         const now = new Date();
         const filename = `Lesson_${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}${String(now.getSeconds()).padStart(2,'0')}`;
-        
         document.getElementById('recordingName').textContent = filename;
         document.getElementById('processingIndicator').classList.add('hidden');
         document.getElementById('recordingComplete').classList.remove('hidden');
         document.getElementById('recordingStatus').style.opacity = '0';
         document.getElementById('recordingWarnings').style.opacity = '0';
+        // Hide these to collapse vertical space after recording completes
+        document.getElementById('timerDisplay').classList.add('hidden');
+        document.getElementById('recordingStatus').classList.add('hidden');
+        document.getElementById('recordingWarnings').classList.add('hidden');
         
         // Reset button to blue "RECORD"
         const recordBtn = document.getElementById('recordButton');
@@ -3000,6 +3090,15 @@
         
         // Store session ID for download
         document.getElementById('downloadRecordingBtn').dataset.sessionId = recordingSessionId;
+
+        // Trigger local save to OPFS and refresh dropdown
+        try {
+            saveSessionLocally(recordingSessionId).then(() => {
+                refreshRecordingsDropdown();
+            });
+        } catch (e) {
+            console.error('Local save failed:', e);
+        }
     }
     
     // Reset recording UI
@@ -3013,6 +3112,9 @@
         document.getElementById('timerDisplay').style.opacity = '0';
         document.getElementById('recordingStatus').style.opacity = '0';
         document.getElementById('recordingWarnings').style.opacity = '0';
+        document.getElementById('timerDisplay').classList.add('hidden');
+        document.getElementById('recordingStatus').classList.add('hidden');
+        document.getElementById('recordingWarnings').classList.add('hidden');
         document.getElementById('transcriptDisplay').classList.add('hidden');
         document.getElementById('processingIndicator').classList.add('hidden');
         document.getElementById('recordingComplete').classList.add('hidden');
@@ -3047,6 +3149,149 @@
             alert('Failed to download recording. Please try again.');
         }
     }
+
+    // ===== Local PWA Drive Helpers (OPFS) =====
+    async function getPwaRoot() {
+        if (!('storage' in navigator) || !navigator.storage.getDirectory) {
+            throw new Error('OPFS is not supported in this browser');
+        }
+        return await navigator.storage.getDirectory();
+    }
+
+    function formatDisplayLabel(date) {
+        const dd = String(date.getDate()).padStart(2, '0');
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const yyyy = date.getFullYear();
+        const hh = String(date.getHours()).padStart(2, '0');
+        const min = String(date.getMinutes()).padStart(2, '0');
+        return `Lesson Recording — ${dd}/${mm}/${yyyy} - ${hh}:${min}`;
+    }
+
+    async function getSessionChunks(sessionId) {
+        const db = await openDB();
+        return await new Promise((resolve, reject) => {
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            const req = store.getAll();
+            req.onerror = () => reject(req.error);
+            req.onsuccess = () => {
+                const records = (req.result || [])
+                    .filter(r => typeof r.key === 'string' && r.key.startsWith(sessionId + '_chunk_'))
+                    .sort((a, b) => parseInt(a.key.split('_chunk_')[1]) - parseInt(b.key.split('_chunk_')[1]))
+                    .map(r => r.blob);
+                resolve(records);
+            };
+        });
+    }
+
+    async function saveSessionLocally(sessionId) {
+        const statusEl = document.getElementById('localSaveStatus');
+        const audioEl = document.getElementById('localPlaybackAudio');
+        try {
+            statusEl.textContent = 'Saving a copy to your device…';
+            const chunks = await getSessionChunks(sessionId);
+            // Fallback: if nothing in IndexedDB (edge case), use in-memory final chunk
+            const blobs = chunks && chunks.length > 0 ? chunks : (recordingChunks.length ? [new Blob(recordingChunks, { type: mediaRecorder?.mimeType || 'audio/webm' })] : []);
+            if (!blobs.length) {
+                statusEl.textContent = 'Nothing to save.';
+                return;
+            }
+
+            // Concatenate all chunks into one Blob. Type set to mp3 for requested format.
+            const combined = new Blob(blobs, { type: 'audio/mp3' });
+
+            // Create filename and persist to OPFS root
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const hh = String(now.getHours()).padStart(2, '0');
+            const mm = String(now.getMinutes()).padStart(2, '0');
+            const ss = String(now.getSeconds()).padStart(2, '0');
+            const filename = `lesson_${y}-${m}-${d}_${hh}-${mm}-${ss}.mp3`;
+
+            const root = await getPwaRoot();
+            const handle = await root.getFileHandle(filename, { create: true });
+            const writable = await handle.createWritable();
+            await writable.write(combined);
+            await writable.close();
+
+            // Show playback and status
+            const url = URL.createObjectURL(await (await handle.getFile()));
+            audioEl.src = url;
+            audioEl.style.display = 'block';
+            statusEl.textContent = `Saved locally as ${filename}`;
+        } catch (err) {
+            console.error(err);
+            statusEl.textContent = 'Failed to save locally.';
+        }
+    }
+
+    async function refreshRecordingsDropdown() {
+        const dropdowns = [
+            document.getElementById('recordingsDropdown'),
+            document.getElementById('recordingsDropdownTop')
+        ].filter(Boolean);
+        if (dropdowns.length === 0) return;
+        dropdowns.forEach(d => d.innerHTML = '');
+        try {
+            const root = await getPwaRoot();
+            const items = [];
+            for await (const [name, handle] of root.entries()) {
+                if (name.endsWith('.mp3')) {
+                    const file = await handle.getFile();
+                    items.push({ name, handle, date: new Date(file.lastModified) });
+                }
+            }
+            // Sort newest first
+            items.sort((a, b) => b.date - a.date);
+            // Populate options
+            dropdowns.forEach(dropdown => {
+                for (const item of items) {
+                    const opt = document.createElement('option');
+                    opt.value = item.name;
+                    opt.textContent = formatDisplayLabel(item.date);
+                    dropdown.appendChild(opt);
+                }
+                if (items.length === 0) {
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = 'No recordings found';
+                    dropdown.appendChild(opt);
+                }
+            });
+        } catch (e) {
+            console.error('Failed to list recordings:', e);
+            dropdowns.forEach(dropdown => {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'No recordings found';
+                dropdown.appendChild(opt);
+            });
+        }
+    }
+
+    async function loadRecordingByName(name, audioElementId) {
+        if (!name) return;
+        try {
+            const root = await getPwaRoot();
+            const handle = await root.getFileHandle(name);
+            const file = await handle.getFile();
+            const url = URL.createObjectURL(file);
+            const targetId = audioElementId || 'localPlaybackAudio';
+            const audioEl = document.getElementById(targetId);
+            if (!audioEl) return;
+            audioEl.src = url;
+            audioEl.style.display = 'block';
+            audioEl.play().catch(() => {});
+            const statusEl = document.getElementById('localSaveStatus');
+            if (statusEl && targetId === 'localPlaybackAudio') {
+                statusEl.textContent = `Loaded ${name}`;
+            }
+        } catch (e) {
+            console.error('Load failed:', e);
+        }
+    }
     
     // Function to show stop recording confirmation modal
     function showStopRecordingModal() {
@@ -3078,6 +3323,32 @@
             showStopRecordingModal();
         }
     });
+    
+    // Load selected local recording
+    const recordingsDropdownEl = document.getElementById('recordingsDropdown');
+    if (recordingsDropdownEl) {
+        recordingsDropdownEl.addEventListener('change', (e) => {
+            const name = e.target.value;
+            if (name) loadRecordingByName(name);
+        });
+    }
+    const recordingsDropdownTopEl = document.getElementById('recordingsDropdownTop');
+    if (recordingsDropdownTopEl) {
+        recordingsDropdownTopEl.addEventListener('change', (e) => {
+            const name = e.target.value;
+            if (name) loadRecordingByName(name, 'topPlaybackAudio');
+        });
+    }
+    const loadRecordingTopBtn = document.getElementById('loadRecordingTopBtn');
+    if (loadRecordingTopBtn && recordingsDropdownTopEl) {
+        loadRecordingTopBtn.addEventListener('click', () => {
+            const name = recordingsDropdownTopEl.value;
+            if (name) loadRecordingByName(name, 'topPlaybackAudio');
+        });
+    }
+
+    // Initial population on page load
+    refreshRecordingsDropdown().catch(() => {});
     document.getElementById('downloadRecordingBtn').addEventListener('click', downloadRecording);
     document.getElementById('newRecordingBtn').addEventListener('click', () => {
         resetRecordingUI();

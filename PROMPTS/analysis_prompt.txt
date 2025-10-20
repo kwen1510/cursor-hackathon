@@ -17,3 +17,18 @@ Constraints:
 - CRITICAL: Use ONLY single timestamps like [mm:ss] or [hh:mm:ss]
 - NEVER use timestamp ranges like [mm:ss-mm:ss] or [00:00-07:37]
 - Each piece of evidence should have ONE clickable timestamp only
+
+Produce a concise lesson summary in this format:
+
+**Answer:** <3-5 sentence high-signal overview>
+
+**Evidence:**
+- <evidence with single [mm:ss] timestamp>
+- <more evidence with single [mm:ss] timestamp>
+
+**Actionable Feedback:**
+- <specific improvement>
+- <specific improvement>
+
+Keep under 250 words. Use only single timestamps (not ranges) that appear in the input.
+
